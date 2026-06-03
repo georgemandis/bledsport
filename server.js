@@ -44,6 +44,27 @@ const ZONES = [
 const DEBUG = process.argv.includes('--debug');
 if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
 
+// --- Speech (espeak-ng, Pi only) ---
+const { execFile } = require('child_process');
+const HAS_ESPEAK = (() => {
+  try { require('child_process').execFileSync('which', ['espeak-ng']); return true; }
+  catch { return false; }
+})();
+if (HAS_ESPEAK) console.log('espeak-ng detected — audio enabled');
+
+function speak(text) {
+  if (!HAS_ESPEAK) return;
+  const pitch = 20 + Math.floor(Math.random() * 70);  // 20-90
+  const speed = 120 + Math.floor(Math.random() * 100); // 120-220 wpm
+  const variant = Math.floor(Math.random() * 5) + 1;
+  execFile('espeak-ng', [
+    '-p', String(pitch),
+    '-s', String(speed),
+    '-v', `en+m${variant}`,
+    text,
+  ], (err) => { if (err) {} }); // fire and forget
+}
+
 // --- WLED connection ---
 const WLED_WS_URL = 'ws://10.100.3.132/ws';
 const LED_START = 1;
@@ -193,6 +214,8 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
 }
 
 // --- Hit a player (from wave or explosion) ---
+const DEATH_PHRASES = ['wasted', 'destroyed', 'eliminated', 'obliterated', 'annihilated', 'rekt', 'game over'];
+
 function hitPlayer(player, attackerId, now) {
   if (player.shieldActive) return; // shield absorbs the hit
   player.alive = false;
@@ -200,6 +223,8 @@ function hitPlayer(player, attackerId, now) {
   player.shieldActive = false;
   const attacker = players.get(attackerId);
   if (attacker) attacker.score++;
+  const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
+  speak(`${player.name}, ${phrase}`);
 }
 
 // --- Input handling ---
@@ -264,6 +289,7 @@ function handleInput(playerId, input) {
       explodeFrame: 0,
     });
     player.bombLastUsed.push(now);
+    speak('kaboom');
   }
 
   if (input.type === 'blast') {
