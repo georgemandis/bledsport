@@ -49,6 +49,7 @@
 </div>
 <div class="status" id="status">Connecting...</div>
 <div class="scoreboard" id="scoreboard"></div>
+<button id="joinBtn" style="margin-top:1rem; padding:0.6rem 2rem; font-family:monospace; font-size:1rem; background:#2a2; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Join Game</button>
 
 <script>
 // ============================================================
@@ -78,8 +79,9 @@ const conn = {
 
     this.ws.onopen = () => {
       this.ready = true;
-      document.getElementById('status').textContent = 'Connected — waiting for game...';
+      document.getElementById('status').textContent = 'Spectating';
       document.getElementById('status').style.color = '#4a4';
+      document.getElementById('joinBtn').style.display = '';
     };
 
     this.ws.onmessage = (e) => {
@@ -88,6 +90,7 @@ const conn = {
         this.myId = msg.id;
         this.myColor = msg.color;
         document.getElementById('status').textContent = `You are Player ${msg.id}`;
+        document.getElementById('joinBtn').style.display = 'none';
       }
       if (msg.type === 'state') {
         gameState.players = msg.players;
@@ -101,8 +104,10 @@ const conn = {
 
     this.ws.onclose = () => {
       this.ready = false;
+      this.myId = null;
       document.getElementById('status').textContent = 'Disconnected — reconnecting...';
       document.getElementById('status').style.color = '#a84';
+      document.getElementById('joinBtn').style.display = 'none';
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = setTimeout(() => this.connect(), 1000);
     };
@@ -390,7 +395,12 @@ function stopDirRepeat(dir) {
 
 const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
+document.getElementById('joinBtn').addEventListener('click', () => {
+  conn.send({ type: 'join' });
+});
+
 document.addEventListener('keydown', (e) => {
+  if (!conn.myId) return; // not joined yet
   if (e.repeat) return;
 
   if (dirMap[e.key]) {

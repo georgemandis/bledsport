@@ -18,7 +18,7 @@ const SHIELD_COOLDOWN_MS = 5000;
 // Power-up spawning
 const POWERUP_SPAWN_MIN = 4000;  // ms
 const POWERUP_SPAWN_MAX = 8000;
-const POWERUP_MAX = 5;           // max on field at once
+const POWERUP_MAX = 1;           // max on field at once
 const POWERUP_TYPES = ['blast', 'bomb', 'shield'];
 
 // Bomb config
@@ -545,25 +545,36 @@ const server = Bun.serve({
   },
   websocket: {
     open(ws) {
-      const id = nextPlayerId++;
-      const player = createPlayer(id);
-      players.set(id, player);
-      clients.set(ws, id);
-      ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
-      console.log(`Player ${id} joined (${players.size} total)`);
+      // Start as spectator — no player until they send { type: 'join' }
+      clients.set(ws, null);
+      ws.send(JSON.stringify({ type: 'spectating' }));
+      console.log('Spectator connected');
     },
     message(ws, msg) {
-      const id = clients.get(ws);
-      if (!id) return;
-      try { handleInput(id, JSON.parse(msg)); } catch {}
+      try {
+        const input = JSON.parse(msg);
+        if (input.type === 'join') {
+          if (clients.get(ws)) return; // already joined
+          const id = nextPlayerId++;
+          const player = createPlayer(id);
+          players.set(id, player);
+          clients.set(ws, id);
+          ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
+          console.log(`Player ${id} joined (${players.size} total)`);
+          return;
+        }
+        const id = clients.get(ws);
+        if (!id) return; // spectator, ignore game inputs
+        handleInput(id, input);
+      } catch {}
     },
     close(ws) {
       const id = clients.get(ws);
       if (id) {
         players.delete(id);
-        clients.delete(ws);
         console.log(`Player ${id} left (${players.size} total)`);
       }
+      clients.delete(ws);
     },
   },
 });
