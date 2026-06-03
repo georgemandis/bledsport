@@ -41,10 +41,11 @@
 <div class="info">Blast other players off the arch!</div>
 <canvas id="arch"></canvas>
 <div class="controls">
-  <b>&uarr;&darr;</b> vertical sides &nbsp;&nbsp;
-  <b>&larr;&rarr;</b> horizontal top &nbsp;&nbsp;
-  <b>Space</b> fire wave &nbsp;&nbsp;
-  <b>Shift</b> faster
+  <b>&uarr;&darr;&larr;&rarr;</b> move &nbsp;&nbsp;
+  <b>A</b> blast &nbsp;&nbsp;
+  <b>B</b> bomb &nbsp;&nbsp;
+  <b>X</b> shield &nbsp;&nbsp;
+  <b>C</b> cycle color
 </div>
 <div class="status" id="status">Connecting...</div>
 <div class="scoreboard" id="scoreboard"></div>
@@ -247,7 +248,7 @@ const renderer = {
         continue;
       }
       // Shield glow
-      if (p.hasShield) {
+      if (p.shieldActive) {
         for (let d = -1; d <= 1; d++) {
           const led = p.pos + d;
           if (led >= 0 && led < NUM_LEDS && d !== 0) {
@@ -318,18 +319,19 @@ const renderer = {
       // Status indicators
       ctx.font = '13px monospace';
       ctx.textAlign = 'center';
-      // Power-up
-      const puLabel = me.powerup ? `[Space] ${me.powerup.toUpperCase()}` : 'no power-up';
-      ctx.fillStyle = me.powerup ? '#ff0' : '#444';
-      ctx.fillText(puLabel, canvas.width / 2 - 60, canvas.height / 2 + 30);
-      // Dash
-      ctx.fillStyle = me.hasDash ? '#fc6' : '#633';
-      ctx.fillText(me.hasDash ? '\u25C9 dash' : '\u25CB dash', canvas.width / 2 + 60, canvas.height / 2 + 30);
+      const y0 = canvas.height / 2 + 30;
+      // Blast
+      const blastLabel = `[A] blast ${me.blastCharges}/${me.blastMax}`;
+      ctx.fillStyle = me.blastCharges > 0 ? '#ff0' : '#633';
+      ctx.fillText(blastLabel, canvas.width / 2 - 80, y0);
+      // Bomb
+      const bombLabel = `[B] bomb ${me.bombCharges}/${me.bombMax}`;
+      ctx.fillStyle = me.bombCharges > 0 ? '#f80' : '#633';
+      ctx.fillText(bombLabel, canvas.width / 2, y0);
       // Shield
-      if (me.hasShield) {
-        ctx.fillStyle = '#adf';
-        ctx.fillText('\u25C9 shield', canvas.width / 2, canvas.height / 2 + 48);
-      }
+      const shieldLabel = me.shieldActive ? '[X] SHIELD!' : me.shieldReady ? '[X] shield' : '[X] shield...';
+      ctx.fillStyle = me.shieldActive ? '#fff' : me.shieldReady ? '#adf' : '#633';
+      ctx.fillText(shieldLabel, canvas.width / 2 + 80, y0);
 
       if (!me.alive) {
         ctx.fillStyle = '#f44';
@@ -364,18 +366,47 @@ const renderer = {
 // ============================================================
 // INPUT
 // ============================================================
-document.addEventListener('keydown', (e) => {
-  const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-  if (!arrows.includes(e.key) && e.key !== ' ') return;
-  e.preventDefault();
+// Key repeat tracking
+const heldDirs = new Set();
+const dirRepeatIntervals = {};
+const REPEAT_MS = 80;
 
-  if (e.key === ' ') {
-    conn.send({ type: 'fire' });
+function startDirRepeat(dir) {
+  if (heldDirs.has(dir)) return;
+  heldDirs.add(dir);
+  conn.send({ type: 'move', dir, shift: false });
+  dirRepeatIntervals[dir] = setInterval(() => {
+    conn.send({ type: 'move', dir, shift: false });
+  }, REPEAT_MS);
+}
+
+function stopDirRepeat(dir) {
+  heldDirs.delete(dir);
+  if (dirRepeatIntervals[dir]) {
+    clearInterval(dirRepeatIntervals[dir]);
+    delete dirRepeatIntervals[dir];
+  }
+}
+
+const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+
+  if (dirMap[e.key]) {
+    e.preventDefault();
+    startDirRepeat(dirMap[e.key]);
     return;
   }
 
-  const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
-  conn.send({ type: 'move', dir: dirMap[e.key], shift: e.shiftKey });
+  if (e.key === 'a' || e.key === 'A') { conn.send({ type: 'blast' }); return; }
+  if (e.key === 'b' || e.key === 'B' || e.key === ' ') { e.preventDefault(); conn.send({ type: 'bomb' }); return; }
+  if (e.key === 'x' || e.key === 'X') { conn.send({ type: 'shield' }); return; }
+  if (e.key === 'c' || e.key === 'C') { conn.send({ type: 'cycle_color' }); return; }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (dirMap[e.key]) stopDirRepeat(dirMap[e.key]);
 });
 
 // ============================================================

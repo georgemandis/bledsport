@@ -1,5 +1,5 @@
 // LED Arch Game — multiplayer server
-// Run: bun server.js
+// Run: bun server.js [--debug] [--gamepad ./innext-controller.json]
 
 const NUM_LEDS = 192;
 const WAVE_SPEED = 2;
@@ -8,6 +8,12 @@ const PLAYER_WIDTH = 1;
 const DASH_REGEN_MS = 3000;
 const TICK_MS = 33; // ~30fps
 const RESPAWN_MS = 2000;
+
+// Ability cooldowns
+const BOMB_COOLDOWN_MS = 5000;
+const BLAST_COOLDOWN_MS = 5000;
+const SHIELD_DURATION_MS = 1000;
+const SHIELD_COOLDOWN_MS = 5000;
 
 // Power-up spawning
 const POWERUP_SPAWN_MIN = 4000;  // ms
@@ -118,6 +124,7 @@ function createPlayer(id) {
     id,
     pos: spawnPos(),
     color: PLAYER_COLORS[colorIndex],
+    colorIndex,
     width: PLAYER_WIDTH,
     alive: true,
     respawnAt: 0,
@@ -127,9 +134,16 @@ function createPlayer(id) {
     lastMoveTime: 0,
     hasDash: true,
     lastDashTime: 0,
-    // Power-ups (picked up, one at a time)
-    powerup: null,  // 'blast' | 'bomb' | 'shield' | null
-    hasShield: false,
+    // Abilities
+    bombCharges: 1,
+    bombMaxCharges: 1,
+    bombLastUsed: [],      // timestamps of each charge used
+    blastCharges: 1,
+    blastMaxCharges: 1,
+    blastLastUsed: [],
+    shieldActive: false,
+    shieldActiveUntil: 0,
+    shieldLastUsed: 0,
   };
 }
 
@@ -180,14 +194,10 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
 
 // --- Hit a player (from wave or explosion) ---
 function hitPlayer(player, attackerId, now) {
-  if (player.hasShield) {
-    player.hasShield = false;
-    return; // shield absorbs the hit
-  }
+  if (player.shieldActive) return; // shield absorbs the hit
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
-  player.powerup = null;
-  player.hasShield = false;
+  player.shieldActive = false;
   const attacker = players.get(attackerId);
   if (attacker) attacker.score++;
 }
@@ -196,6 +206,7 @@ function hitPlayer(player, attackerId, now) {
 function handleInput(playerId, input) {
   const player = players.get(playerId);
   if (!player) return;
+  const now = Date.now();
 
   if (input.type === 'move') {
     if (!player.alive) return;
@@ -205,13 +216,13 @@ function handleInput(playerId, input) {
     if (delta === 0) return;
 
     player.lastDelta = delta > 0 ? 1 : -1;
-    player.lastMoveTime = Date.now();
+    player.lastMoveTime = now;
     const newPos = Math.max(0, Math.min(NUM_LEDS - 1, player.pos + delta));
 
     if (wantsDash) {
       player.pos = newPos;
       player.hasDash = false;
-      player.lastDashTime = Date.now();
+      player.lastDashTime = now;
     } else {
       const oldPos = player.pos;
       player.pos = newPos;
@@ -224,31 +235,62 @@ function handleInput(playerId, input) {
     for (let i = powerups.length - 1; i >= 0; i--) {
       if (powerups[i].pos === player.pos) {
         const pu = powerups.splice(i, 1)[0];
-        if (pu.type === 'shield') {
-          player.hasShield = true;
-        } else {
-          player.powerup = pu.type;
+        if (pu.type === 'bomb') {
+          player.bombMaxCharges++;
+          player.bombCharges++;
+        } else if (pu.type === 'blast') {
+          player.blastMaxCharges++;
+          player.blastCharges++;
+        } else if (pu.type === 'shield') {
+          // Instant shield recharge
+          player.shieldLastUsed = 0;
         }
       }
     }
   }
 
+  if (input.type === 'bomb') {
+    if (!player.alive) return;
+    // Recharge spent charges
+    player.bombLastUsed = player.bombLastUsed.filter(t => now - t < BOMB_COOLDOWN_MS);
+    const available = player.bombMaxCharges - player.bombLastUsed.length;
+    if (available <= 0) return;
+    bombs.push({
+      pos: player.pos,
+      owner: playerId,
+      placedAt: now,
+      width: BOMB_WIDTH,
+      exploding: false,
+      explodeFrame: 0,
+    });
+    player.bombLastUsed.push(now);
+  }
+
+  if (input.type === 'blast') {
+    if (!player.alive) return;
+    player.blastLastUsed = player.blastLastUsed.filter(t => now - t < BLAST_COOLDOWN_MS);
+    const available = player.blastMaxCharges - player.blastLastUsed.length;
+    if (available <= 0) return;
+    waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: WAVE_MAX });
+    player.blastLastUsed.push(now);
+  }
+
+  if (input.type === 'shield') {
+    if (!player.alive) return;
+    if (player.shieldActive) return;
+    if (now - player.shieldLastUsed < SHIELD_COOLDOWN_MS) return;
+    player.shieldActive = true;
+    player.shieldActiveUntil = now + SHIELD_DURATION_MS;
+  }
+
+  // Legacy: browser 'fire' uses whatever the player last picked up (backwards compat)
   if (input.type === 'fire') {
-    if (!player.alive || !player.powerup) return;
-    if (player.powerup === 'blast') {
-      waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: WAVE_MAX });
-      player.powerup = null;
-    } else if (player.powerup === 'bomb') {
-      bombs.push({
-        pos: player.pos,
-        owner: playerId,
-        placedAt: Date.now(),
-        width: BOMB_WIDTH,
-        exploding: false,
-        explodeFrame: 0,
-      });
-      player.powerup = null;
-    }
+    handleInput(playerId, { type: 'blast' });
+  }
+
+  if (input.type === 'cycle_color') {
+    player.colorIndex = (player.colorIndex + 1) % PLAYER_COLORS.length;
+    player.color = PLAYER_COLORS[player.colorIndex];
   }
 
   if (input.type === 'name') {
@@ -273,13 +315,24 @@ function tick() {
   for (const p of players.values()) {
     if (p.lastDelta !== 0 && now - p.lastMoveTime > 200) p.lastDelta = 0;
     if (!p.hasDash && p.alive && now - p.lastDashTime >= DASH_REGEN_MS) p.hasDash = true;
+    // Shield expiration
+    if (p.shieldActive && now >= p.shieldActiveUntil) {
+      p.shieldActive = false;
+      p.shieldLastUsed = now;
+    }
     if (!p.alive && now >= p.respawnAt) {
       p.alive = true;
       p.pos = spawnPos();
       p.lastDelta = 0;
       p.hasDash = true;
-      p.powerup = null;
-      p.hasShield = false;
+      p.shieldActive = false;
+      p.bombMaxCharges = 1;
+      p.bombCharges = 1;
+      p.bombLastUsed = [];
+      p.blastMaxCharges = 1;
+      p.blastCharges = 1;
+      p.blastLastUsed = [];
+      p.shieldLastUsed = 0;
     }
   }
 
@@ -391,7 +444,7 @@ function tick() {
       continue;
     }
     // Shield glow
-    if (p.hasShield) {
+    if (p.shieldActive) {
       for (let d = -1; d <= 1; d++) {
         const led = p.pos + d;
         if (led >= 0 && led < NUM_LEDS && d !== 0) {
@@ -426,11 +479,20 @@ function tick() {
 }
 
 function serializePlayers() {
-  return [...players.values()].map(p => ({
-    id: p.id, pos: p.pos, color: p.color, width: p.width,
-    hasDash: p.hasDash, alive: p.alive, score: p.score, name: p.name,
-    powerup: p.powerup, hasShield: p.hasShield,
-  }));
+  const now = Date.now();
+  return [...players.values()].map(p => {
+    const bombReady = p.bombMaxCharges - p.bombLastUsed.filter(t => now - t < BOMB_COOLDOWN_MS).length;
+    const blastReady = p.blastMaxCharges - p.blastLastUsed.filter(t => now - t < BLAST_COOLDOWN_MS).length;
+    const shieldReady = !p.shieldActive && (now - p.shieldLastUsed >= SHIELD_COOLDOWN_MS);
+    return {
+      id: p.id, pos: p.pos, color: p.color, width: p.width,
+      hasDash: p.hasDash, alive: p.alive, score: p.score, name: p.name,
+      shieldActive: p.shieldActive,
+      bombCharges: bombReady, bombMax: p.bombMaxCharges,
+      blastCharges: blastReady, blastMax: p.blastMaxCharges,
+      shieldReady,
+    };
+  });
 }
 
 function serializeWaves() {
@@ -505,6 +567,112 @@ const server = Bun.serve({
     },
   },
 });
+
+// --- Gamepad support ---
+const gamepadArgIdx = process.argv.indexOf('--gamepad');
+const gamepadMapping = gamepadArgIdx !== -1 ? process.argv[gamepadArgIdx + 1] : null;
+
+if (gamepadMapping) {
+  const { discoverGamepads } = require('./gamepad.ts');
+  const pads = discoverGamepads(gamepadMapping);
+
+  if (pads.length === 0) {
+    console.log('No gamepads found for mapping:', gamepadMapping);
+  }
+
+  const DPAD_REPEAT_MS = 80;
+
+  // Track which pad index is bound to which player id
+  const padPlayers = new Map(); // pad.index -> playerId
+  const padDpadIntervals = new Map(); // pad.index -> { dir: intervalId }
+
+  function startDpadRepeat(pad, dir) {
+    let intervals = padDpadIntervals.get(pad.index);
+    if (!intervals) { intervals = {}; padDpadIntervals.set(pad.index, intervals); }
+    if (intervals[dir]) return; // already repeating
+
+    const playerId = padPlayers.get(pad.index);
+    if (!playerId) return;
+
+    // Fire immediately
+    handleInput(playerId, { type: 'move', dir, shift: false });
+    // Then repeat
+    intervals[dir] = setInterval(() => {
+      const pid = padPlayers.get(pad.index);
+      if (pid) handleInput(pid, { type: 'move', dir, shift: false });
+    }, DPAD_REPEAT_MS);
+  }
+
+  function stopDpadRepeat(pad, dir) {
+    const intervals = padDpadIntervals.get(pad.index);
+    if (!intervals || !intervals[dir]) return;
+    clearInterval(intervals[dir]);
+    delete intervals[dir];
+  }
+
+  for (const pad of pads) {
+    console.log(`Gamepad ${pad.index} ready — press Start to join`);
+
+    pad.on('press', (button) => {
+      const playerId = padPlayers.get(pad.index);
+
+      // Start = join
+      if (button === 'start') {
+        if (playerId) return; // already joined
+        const id = nextPlayerId++;
+        const player = createPlayer(id);
+        player.name = `Pad${pad.index + 1}`;
+        players.set(id, player);
+        padPlayers.set(pad.index, id);
+        console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
+        return;
+      }
+
+      if (!playerId) return; // not joined yet
+
+      // Select = cycle color
+      if (button === 'select') handleInput(playerId, { type: 'cycle_color' });
+
+      // D-pad → move with hold repeat
+      if (button === 'dpad_up') startDpadRepeat(pad, 'up');
+      if (button === 'dpad_down') startDpadRepeat(pad, 'down');
+      if (button === 'dpad_left') startDpadRepeat(pad, 'left');
+      if (button === 'dpad_right') startDpadRepeat(pad, 'right');
+
+      // A = blast
+      if (button === 'a') handleInput(playerId, { type: 'blast' });
+
+      // B = bomb
+      if (button === 'b') handleInput(playerId, { type: 'bomb' });
+
+      // X = shield
+      if (button === 'x') handleInput(playerId, { type: 'shield' });
+    });
+
+    pad.on('release', (button) => {
+      // Stop d-pad repeat on release
+      if (button === 'dpad_up') stopDpadRepeat(pad, 'up');
+      if (button === 'dpad_down') stopDpadRepeat(pad, 'down');
+      if (button === 'dpad_left') stopDpadRepeat(pad, 'left');
+      if (button === 'dpad_right') stopDpadRepeat(pad, 'right');
+    });
+
+    pad.on('disconnect', () => {
+      // Clean up all repeat intervals
+      const intervals = padDpadIntervals.get(pad.index);
+      if (intervals) {
+        for (const dir of Object.keys(intervals)) clearInterval(intervals[dir]);
+        padDpadIntervals.delete(pad.index);
+      }
+      const playerId = padPlayers.get(pad.index);
+      if (playerId) {
+        players.delete(playerId);
+        padPlayers.delete(pad.index);
+        console.log(`Gamepad ${pad.index} disconnected, Player ${playerId} removed`);
+      }
+    });
+  }
+}
 
 setInterval(tick, TICK_MS);
 connectWled();
