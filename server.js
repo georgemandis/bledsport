@@ -138,8 +138,8 @@ function createPlayer(id) {
     bombCharges: 1,
     bombMaxCharges: 1,
     bombLastUsed: [],      // timestamps of each charge used
-    blastCharges: 1,
-    blastMaxCharges: 1,
+    blastCharges: 0,
+    blastMaxCharges: 0,
     blastLastUsed: [],
     shieldActive: false,
     shieldActiveUntil: 0,
@@ -329,8 +329,8 @@ function tick() {
       p.bombMaxCharges = 1;
       p.bombCharges = 1;
       p.bombLastUsed = [];
-      p.blastMaxCharges = 1;
-      p.blastCharges = 1;
+      p.blastMaxCharges = 0;
+      p.blastCharges = 0;
       p.blastLastUsed = [];
       p.shieldLastUsed = 0;
     }
