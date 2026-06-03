@@ -658,6 +658,13 @@ if (gamepadMapping) {
 
       // X = shield
       if (button === 'x') handleInput(playerId, { type: 'shield' });
+
+      // L or R = dash in held d-pad direction
+      if (button === 'l' || button === 'r') {
+        const held = pad.state.buttons;
+        const dir = held.dpad_up ? 'up' : held.dpad_down ? 'down' : held.dpad_left ? 'left' : held.dpad_right ? 'right' : null;
+        if (dir) handleInput(playerId, { type: 'move', dir, shift: true });
+      }
     });
 
     pad.on('release', (button) => {
