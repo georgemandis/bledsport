@@ -34,6 +34,10 @@ const ZONES = [
   { name: 'right', start: 135, end: 191 },
 ];
 
+// --- Debug mode ---
+const DEBUG = process.argv.includes('--debug');
+if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
+
 // --- WLED connection ---
 const WLED_WS_URL = 'ws://10.100.3.132/ws';
 const LED_START = 1;
@@ -41,6 +45,7 @@ let wledWs = null;
 let wledReady = false;
 
 function connectWled() {
+  if (DEBUG) return;
   try {
     wledWs = new WebSocket(WLED_WS_URL);
     wledWs.onopen = () => { wledReady = true; console.log('WLED connected'); };
