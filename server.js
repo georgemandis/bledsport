@@ -185,7 +185,7 @@ function startGame() {
   fires = [];
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
-  speak('fight');
+  // speak('fight');
   console.log(`Game started with ${players.size} players`);
 }
 
@@ -312,7 +312,7 @@ function hitPlayer(player, attackerId, now) {
   const attacker = players.get(attackerId);
   if (attacker) attacker.score++;
   const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
-  speak(`${player.name}, ${phrase}`);
+  // speak(`${player.name}, ${phrase}`);
 
   // Announce score
   if (attacker) {
@@ -320,11 +320,13 @@ function hitPlayer(player, attackerId, now) {
       .map(p => `${p.name}, ${p.score}`)
       .join('. ');
     setTimeout(() => {
-      speak(`${scores}. out of ${WINS_NEEDED}`);
+      // speak(`${scores}. out of ${WINS_NEEDED}`);
       // Check for match point
       const matchPointPlayers = [...players.values()].filter(p => p.score === WINS_NEEDED - 1);
       if (matchPointPlayers.length > 0 && gamePhase === 'playing') {
-        setTimeout(() => speak('match point'), 2000);
+        setTimeout(() => {
+          // speak('match point');
+        }, 2000);
       }
     }, 1500);
   }
@@ -335,7 +337,7 @@ function hitPlayer(player, attackerId, now) {
     victoryStart = now;
     victoryColor = attacker.color;
     victoryPlayerName = attacker.name;
-    speak(`${attacker.name} wins`);
+    // speak(`${attacker.name} wins`);
     console.log(`${attacker.name} wins!`);
   }
 }
@@ -429,7 +431,7 @@ function handleInput(playerId, input) {
     if (available <= 0) return;
     waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: WAVE_MAX });
     player.blastLastUsed.push(now);
-    speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
+    // speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
   }
 
   if (input.type === 'shield') {
@@ -534,7 +536,7 @@ function tick() {
   // Idle timeout
   if (now - lastInputTime >= IDLE_RESET_MS) {
     console.log('No input for 60s — resetting');
-    speak('game over, no activity');
+    // speak('game over, no activity');
     resetGame();
     return;
   }
@@ -610,7 +612,7 @@ function tick() {
       if (elapsed >= BOMB_FUSE_MS) {
         b.exploding = true;
         b.explodeFrame = 0;
-        speak(EXPLOSION_PHRASES[Math.floor(Math.random() * EXPLOSION_PHRASES.length)]);
+        // speak(EXPLOSION_PHRASES[Math.floor(Math.random() * EXPLOSION_PHRASES.length)]);
       }
       // Kick sliding
       if (b.kickDir) {
@@ -881,7 +883,7 @@ const server = Bun.serve({
           clients.set(ws, id);
           ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
           console.log(`Player ${id} joined (${players.size} total)`);
-          speak(`${player.name} has joined`);
+          // speak(`${player.name} has joined`);
           return;
         }
         if (input.type === 'start_game') {
@@ -904,7 +906,7 @@ const server = Bun.serve({
             explodeFrame: 0,
             godBomb: true,
           });
-          speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
+          // speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
           return;
         }
         const id = clients.get(ws);
@@ -984,7 +986,7 @@ if (gamepadMapping) {
             players.set(id, player);
             padPlayers.set(pad.index, id);
             console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
-            speak(`${player.name} has joined`);
+            // speak(`${player.name} has joined`);
           }
           // Try to start if enough players
           if (players.size >= 2) startGame();
