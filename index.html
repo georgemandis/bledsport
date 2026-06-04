@@ -378,8 +378,8 @@ const renderer = {
         ctx.fillStyle = me.blastCharges > 0 ? '#ff0' : '#633';
         ctx.fillText(blastLabel, canvas.width / 2 - 80, y0);
         // Bomb
-        const bombLabel = `[B] bomb ${me.bombCharges}/${me.bombMax}`;
-        ctx.fillStyle = me.bombCharges > 0 ? '#f80' : '#633';
+        const bombLabel = me.bombReady ? '[B] bomb' : '[B] bomb...';
+        ctx.fillStyle = me.bombReady ? '#f80' : '#633';
         ctx.fillText(bombLabel, canvas.width / 2, y0);
         // Shield
         const shieldLabel = me.shieldActive ? '[X] SHIELD!' : me.shieldReady ? '[X] shield' : '[X] shield...';

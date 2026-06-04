@@ -19,7 +19,7 @@ const SHIELD_COOLDOWN_MS = 5000;
 const POWERUP_SPAWN_MIN = 4000;  // ms
 const POWERUP_SPAWN_MAX = 8000;
 const POWERUP_MAX = 1;           // max on field at once
-const POWERUP_TYPES = ['blast', 'bomb', 'shield'];
+const POWERUP_TYPES = ['blast'];
 
 // Bomb config
 const BOMB_WIDTH = 5;
@@ -374,15 +374,9 @@ function handleInput(playerId, input) {
     for (let i = powerups.length - 1; i >= 0; i--) {
       if (powerups[i].pos === player.pos) {
         const pu = powerups.splice(i, 1)[0];
-        if (pu.type === 'bomb') {
-          player.bombMaxCharges++;
-          player.bombCharges++;
-        } else if (pu.type === 'blast') {
+        if (pu.type === 'blast') {
           player.blastMaxCharges++;
           player.blastCharges++;
-        } else if (pu.type === 'shield') {
-          // Instant shield recharge
-          player.shieldLastUsed = 0;
         }
       }
     }
@@ -390,10 +384,9 @@ function handleInput(playerId, input) {
 
   if (input.type === 'bomb') {
     if (!player.alive) return;
-    // Recharge spent charges
-    player.bombLastUsed = player.bombLastUsed.filter(t => now - t < BOMB_COOLDOWN_MS);
-    const available = player.bombMaxCharges - player.bombLastUsed.length;
-    if (available <= 0) return;
+    // Cooldown check — unlimited bombs, one at a time per cooldown
+    if (player.bombLastUsed.length > 0 && now - player.bombLastUsed[player.bombLastUsed.length - 1] < BOMB_COOLDOWN_MS) return;
+    player.bombLastUsed = [now]; // reset to just this placement
     bombs.push({
       pos: player.pos,
       owner: playerId,
@@ -402,7 +395,6 @@ function handleInput(playerId, input) {
       exploding: false,
       explodeFrame: 0,
     });
-    player.bombLastUsed.push(now);
   }
 
   if (input.type === 'blast') {
@@ -749,14 +741,14 @@ function tick() {
 function serializePlayers() {
   const now = Date.now();
   return [...players.values()].map(p => {
-    const bombReady = p.bombMaxCharges - p.bombLastUsed.filter(t => now - t < BOMB_COOLDOWN_MS).length;
+    const bombReady = p.bombLastUsed.length === 0 || now - p.bombLastUsed[p.bombLastUsed.length - 1] >= BOMB_COOLDOWN_MS;
     const blastReady = p.blastMaxCharges - p.blastLastUsed.filter(t => now - t < BLAST_COOLDOWN_MS).length;
     const shieldReady = !p.shieldActive && (now - p.shieldLastUsed >= SHIELD_COOLDOWN_MS);
     return {
       id: p.id, pos: p.pos, color: p.color, width: p.width,
       hasDash: p.hasDash, alive: p.alive, score: p.score, name: p.name,
       shieldActive: p.shieldActive,
-      bombCharges: bombReady, bombMax: p.bombMaxCharges,
+      bombReady,
       blastCharges: blastReady, blastMax: p.blastMaxCharges,
       shieldReady,
     };
