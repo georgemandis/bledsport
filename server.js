@@ -28,6 +28,10 @@ const BOMB_EXPLODE_RADIUS = 8;
 const BOMB_EXPLODE_FRAMES = 10;
 const BOMB_KICK_SPEED = 0.5;     // LEDs per tick (half player speed)
 
+// Hand of God config
+const GOD_FIRE_DURATION_MS = 3000; // fire lasts 3 seconds
+const GOD_FIRE_SPREAD = 1;         // 1 pixel each side = 3 total pixels
+
 // Portal config
 const PORTAL_GLOW_SIZE = 3;      // LEDs of glow at each end
 const PORTAL_MOMENTUM = 4;       // forced moves after teleporting
@@ -51,12 +55,39 @@ const DEBUG = process.argv.includes('--debug');
 if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
 
 // --- Speech (espeak-ng, Pi only) ---
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const HAS_ESPEAK = (() => {
   try { require('child_process').execFileSync('which', ['espeak-ng']); return true; }
   catch { return false; }
 })();
 if (HAS_ESPEAK) console.log('espeak-ng detected — audio enabled');
+
+// --- Music (mpg123, Pi only) ---
+const HAS_MPG123 = (() => {
+  try { require('child_process').execFileSync('which', ['mpg123']); return true; }
+  catch { return false; }
+})();
+if (HAS_MPG123) console.log('mpg123 detected — music enabled');
+const MUSIC_FILE = __dirname + '/ledarchgame.mp3';
+let musicProcess = null;
+
+function startMusic() {
+  if (!HAS_MPG123) return;
+  stopMusic();
+  musicProcess = spawn('mpg123', ['--loop', '-1', MUSIC_FILE], {
+    stdio: 'ignore',
+    detached: false,
+  });
+  musicProcess.on('error', () => { musicProcess = null; });
+  musicProcess.on('exit', () => { musicProcess = null; });
+}
+
+function stopMusic() {
+  if (musicProcess) {
+    try { musicProcess.kill(); } catch {}
+    musicProcess = null;
+  }
+}
 
 function speak(text) {
   if (!HAS_ESPEAK) return;
@@ -125,16 +156,19 @@ let waves = [];
 let powerups = [];  // {pos, type, spawnTime}
 let bombs = [];     // {pos, owner, placedAt, width, exploding, explodeFrame}
 let explosions = []; // {center, radius, frame, maxFrames}
+let fires = [];      // {pos, placedAt} — from Hand of God bombs
 let animTime = 0;
 let lastPowerupSpawn = Date.now();
 let nextPowerupDelay = randomBetween(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
 
 function resetGame() {
   gamePhase = 'waiting';
+  stopMusic();
   waves = [];
   powerups = [];
   bombs = [];
   explosions = [];
+  fires = [];
   // Remove all players — they must press Start/Join again
   players.clear();
   // Reset browser clients to spectator
@@ -174,9 +208,11 @@ function startGame() {
   waves = [];
   powerups = [];
   bombs = [];
+  fires = [];
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
   speak('fight');
+  startMusic();
   console.log(`Game started with ${players.size} players`);
 }
 
@@ -293,6 +329,7 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
 const DEATH_PHRASES = ['wasted', 'destroyed', 'eliminated', 'obliterated', 'annihilated', 'rekt', 'game over'];
 const EXPLOSION_PHRASES = ['kaboom', 'boom', 'ka-blam', 'explosive', 'bang', 'kablammo', 'boooom'];
 const BLAST_PHRASES = ['pew pew', 'bang bang', 'zap zap', 'pew pew pew', 'blam blam', 'zzzap'];
+const GOD_PHRASES = ['the hand of god', 'hand of god', 'divine intervention', 'wrath of god', 'judgment from above'];
 
 function hitPlayer(player, attackerId, now) {
   if (player.shieldActive) return; // shield absorbs the hit
@@ -307,6 +344,7 @@ function hitPlayer(player, attackerId, now) {
   // Check for winner
   if (attacker && attacker.score >= WINS_NEEDED) {
     gamePhase = 'victory';
+    stopMusic();
     victoryStart = now;
     victoryColor = attacker.color;
     victoryPlayerName = attacker.name;
@@ -610,7 +648,29 @@ function tick() {
       }
     }
   }
+  // Spawn fire from god bombs when they finish exploding
+  for (const b of bombs) {
+    if (b.exploding && b.explodeFrame > BOMB_EXPLODE_FRAMES && b.godBomb) {
+      for (let d = -GOD_FIRE_SPREAD; d <= GOD_FIRE_SPREAD; d++) {
+        const fPos = b.pos + d;
+        if (fPos >= 0 && fPos < NUM_LEDS) {
+          fires.push({ pos: fPos, placedAt: now });
+        }
+      }
+    }
+  }
   bombs = bombs.filter(b => !(b.exploding && b.explodeFrame > BOMB_EXPLODE_FRAMES));
+
+  // Expire fires and check fire collisions
+  fires = fires.filter(f => now - f.placedAt < GOD_FIRE_DURATION_MS);
+  for (const f of fires) {
+    for (const p of players.values()) {
+      if (!p.alive) continue;
+      if (p.pos === f.pos) {
+        hitPlayer(p, null, now);
+      }
+    }
+  }
 
   // --- Render ---
   const pixels = new Array(NUM_LEDS).fill(null);
@@ -678,6 +738,17 @@ function tick() {
     }
   }
 
+  // Fires (Hand of God)
+  for (const f of fires) {
+    const age = (now - f.placedAt) / GOD_FIRE_DURATION_MS;
+    const fadeOut = 1 - age * 0.5; // fade to 50% brightness
+    const flicker = 0.6 + 0.4 * Math.sin(animTime * 15 + f.pos * 3);
+    const bri = fadeOut * flicker;
+    if (f.pos >= 0 && f.pos < NUM_LEDS) {
+      pixels[f.pos] = [Math.round(255 * bri), Math.round(80 * bri), 0];
+    }
+  }
+
   // Waves
   for (const w of waves) {
     const r = Math.round(w.radius);
@@ -733,7 +804,8 @@ function tick() {
     players: serializePlayers(),
     waves: serializeWaves(),
     powerups: powerups.map(p => ({ pos: p.pos, type: p.type })),
-    bombs: bombs.map(b => ({ pos: b.pos, owner: b.owner, width: b.width, exploding: b.exploding, explodeFrame: b.explodeFrame })),
+    bombs: bombs.map(b => ({ pos: b.pos, owner: b.owner, width: b.width, exploding: b.exploding, explodeFrame: b.explodeFrame, godBomb: b.godBomb || false })),
+    fires: fires.map(f => ({ pos: f.pos, age: (Date.now() - f.placedAt) / GOD_FIRE_DURATION_MS })),
     animTime,
   });
 }
@@ -827,6 +899,25 @@ const server = Bun.serve({
         }
         if (input.type === 'start_game') {
           if (gamePhase === 'waiting' && players.size >= 2) startGame();
+          return;
+        }
+        // Hand of God — spectators only
+        if (input.type === 'god_bomb') {
+          const id = clients.get(ws);
+          if (id) return; // players can't use this
+          if (gamePhase !== 'playing') return;
+          const pos = Math.round(input.pos);
+          if (pos < 0 || pos >= NUM_LEDS) return;
+          bombs.push({
+            pos,
+            owner: null,
+            placedAt: Date.now(),
+            width: BOMB_WIDTH,
+            exploding: false,
+            explodeFrame: 0,
+            godBomb: true,
+          });
+          speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
           return;
         }
         const id = clients.get(ws);
