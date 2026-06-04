@@ -5,17 +5,41 @@
 import HID from "node-hid";
 import * as readline from "node:readline";
 
-const GAMEPAD_VENDOR_ID = 0x79;
-const GAMEPAD_PRODUCT_ID = 0x11;
+// Accept vendor:product as first arg (hex or decimal), e.g. "0x46d:0xc216" or "1133:49686"
+// If not provided, list HID devices and let user pick one.
+const devices = HID.devices();
+
+let GAMEPAD_VENDOR_ID: number;
+let GAMEPAD_PRODUCT_ID: number;
+
+const vidPidArg = process.argv[2];
+if (vidPidArg && vidPidArg.includes(":")) {
+  const [vid, pid] = vidPidArg.split(":");
+  GAMEPAD_VENDOR_ID = Number(vid);
+  GAMEPAD_PRODUCT_ID = Number(pid);
+} else {
+  // Show all HID devices with product names and let user know how to specify
+  const named = devices.filter((d) => d.product);
+  const unique = new Map<string, typeof named[0]>();
+  for (const d of named) {
+    const key = `${d.vendorId}:${d.productId}`;
+    if (!unique.has(key)) unique.set(key, d);
+  }
+  console.log("No vendor:product specified. Connected HID devices:");
+  for (const [key, d] of unique) {
+    console.log(`  ${d.product?.trim()} (vendor=${d.vendorId}, product=${d.productId}) → use: bun gamepad-test.ts ${d.vendorId}:${d.productId}`);
+  }
+  console.log("\nUsage: bun gamepad-test.ts <vendorId>:<productId> [output-filename.json]");
+  process.exit(1);
+}
 
 // Find all matching gamepads
-const devices = HID.devices();
 const gamepads = devices.filter(
   (d) => d.vendorId === GAMEPAD_VENDOR_ID && d.productId === GAMEPAD_PRODUCT_ID
 );
 
 if (gamepads.length === 0) {
-  console.log("No gamepads found. Connected HID devices:");
+  console.log(`No gamepads found with vendor=${GAMEPAD_VENDOR_ID}, product=${GAMEPAD_PRODUCT_ID}. Connected HID devices:`);
   for (const d of devices) {
     if (d.product) console.log(`  ${d.product} (vendor=${d.vendorId}, product=${d.productId})`);
   }
@@ -189,7 +213,7 @@ async function run() {
   }
 
   // Write mapping file
-  const filename = process.argv[2] || `gamepad-mapping-${GAMEPAD_VENDOR_ID.toString(16)}-${GAMEPAD_PRODUCT_ID.toString(16)}.json`;
+  const filename = process.argv[3] || `gamepad-mapping-${GAMEPAD_VENDOR_ID.toString(16)}-${GAMEPAD_PRODUCT_ID.toString(16)}.json`;
   await Bun.write(filename, JSON.stringify(mapping, null, 2) + "\n");
   console.log(`\nMapping saved to ${filename}`);
   console.log(JSON.stringify(mapping, null, 2));

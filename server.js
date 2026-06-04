@@ -160,7 +160,7 @@ function resetGame() {
 }
 
 function startGame() {
-  if (players.size < 2) return;
+  if (players.size < 1) return;
   gamePhase = 'playing';
   // Reset scores and respawn everyone
   for (const p of players.values()) {
@@ -305,6 +305,7 @@ const BLAST_PHRASES = ['pew pew', 'bang bang', 'zap zap', 'pew pew pew', 'blam b
 const GOD_PHRASES = ['the hand of god', 'hand of god', 'divine intervention', 'wrath of god', 'judgment from above'];
 
 function hitPlayer(player, attackerId, now) {
+  if (gamePhase !== 'playing') return; // game already ended
   if (player.shieldActive) return; // shield absorbs the hit
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
@@ -875,8 +876,9 @@ const server = Bun.serve({
       try {
         const input = JSON.parse(msg);
         if (input.type === 'join') {
-          if (gamePhase !== 'waiting') return;
+          if (gamePhase === 'victory') return;
           if (clients.get(ws)) return; // already joined
+          if (players.size >= 4) return; // max 4 players
           const id = nextPlayerId++;
           const player = createPlayer(id);
           players.set(id, player);
@@ -884,10 +886,11 @@ const server = Bun.serve({
           ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
           console.log(`Player ${id} joined (${players.size} total)`);
           // speak(`${player.name} has joined`);
+          startGame(); // restart round with all current players
           return;
         }
         if (input.type === 'start_game') {
-          if (gamePhase === 'waiting' && players.size >= 2) startGame();
+          if (gamePhase === 'waiting' && players.size >= 1) startGame();
           return;
         }
         // Hand of God — spectators only
@@ -926,15 +929,28 @@ const server = Bun.serve({
 });
 
 // --- Gamepad support ---
-const gamepadArgIdx = process.argv.indexOf('--gamepad');
-const gamepadMapping = gamepadArgIdx !== -1 ? process.argv[gamepadArgIdx + 1] : null;
+// Collect all --gamepad args (supports multiple controller types)
+const gamepadMappings = [];
+for (let i = 0; i < process.argv.length; i++) {
+  if (process.argv[i] === '--gamepad' && process.argv[i + 1]) {
+    gamepadMappings.push(process.argv[++i]);
+  }
+}
 
-if (gamepadMapping) {
+if (gamepadMappings.length > 0) {
   const { discoverGamepads } = require('./gamepad.ts');
-  const pads = discoverGamepads(gamepadMapping);
 
-  if (pads.length === 0) {
-    console.log('No gamepads found for mapping:', gamepadMapping);
+  // Discover pads for each mapping, assign globally unique indices
+  const allPads = [];
+  for (const mappingPath of gamepadMappings) {
+    const pads = discoverGamepads(mappingPath);
+    if (pads.length === 0) {
+      console.log('No gamepads found for mapping:', mappingPath);
+    }
+    for (const pad of pads) {
+      pad.index = allPads.length; // globally unique index
+      allPads.push(pad);
+    }
   }
 
   const DPAD_REPEAT_MS = 80;
@@ -968,31 +984,28 @@ if (gamepadMapping) {
     delete intervals[dir];
   }
 
-  for (const pad of pads) {
-    console.log(`Gamepad ${pad.index} ready — press Start to join`);
+  for (const pad of allPads) {
+    console.log(`Gamepad ${pad.index} (${pad.mapping.device.product}) ready — press Start to join`);
 
     pad.on('press', (button) => {
       const playerId = padPlayers.get(pad.index);
 
-      // Start = join (waiting) or no-op (playing/victory)
+      // Start = join and restart round with all players
       if (button === 'start') {
         if (gamePhase === 'victory') return;
-        if (gamePhase === 'waiting') {
-          if (!playerId) {
-            // Join
-            const id = nextPlayerId++;
-            const player = createPlayer(id);
-            player.name = `Pad${pad.index + 1}`;
-            players.set(id, player);
-            padPlayers.set(pad.index, id);
-            console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
-            // speak(`${player.name} has joined`);
-          }
-          // Try to start if enough players
-          if (players.size >= 2) startGame();
-          return;
+        if (!playerId) {
+          if (players.size >= 4) return; // max 4 players
+          // Join
+          const id = nextPlayerId++;
+          const player = createPlayer(id);
+          player.name = `Pad${pad.index + 1}`;
+          players.set(id, player);
+          padPlayers.set(pad.index, id);
+          console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
+          // speak(`${player.name} has joined`);
+          startGame(); // restart round with all current players
         }
-        return; // already playing
+        return;
       }
 
       if (!playerId) return; // not joined yet

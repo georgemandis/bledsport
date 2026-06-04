@@ -1,0 +1,72 @@
+{
+  "device": {
+    "vendorId": 1133,
+    "productId": 49686,
+    "product": "Logitech Dual Action"
+  },
+  "idleState": "80 7f 80 7f 08 00 00 ff",
+  "byteCount": 8,
+  "buttons": {
+    "dpad_up": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 0
+    },
+    "dpad_down": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 4
+    },
+    "dpad_left": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 6
+    },
+    "dpad_right": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 2
+    },
+    "a": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 40
+    },
+    "b": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 72
+    },
+    "x": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 24
+    },
+    "y": {
+      "byte": 4,
+      "idle": 8,
+      "pressed": 136
+    },
+    "l": {
+      "byte": 5,
+      "idle": 0,
+      "pressed": 4
+    },
+    "r": {
+      "byte": 5,
+      "idle": 0,
+      "pressed": 8
+    },
+    "select": {
+      "byte": 5,
+      "idle": 0,
+      "pressed": 16
+    },
+    "start": {
+      "byte": 5,
+      "idle": 0,
+      "pressed": 32
+    }
+  },
+  "axes": {}
+}
