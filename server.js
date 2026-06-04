@@ -291,6 +291,8 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
 
 // --- Hit a player (from wave or explosion) ---
 const DEATH_PHRASES = ['wasted', 'destroyed', 'eliminated', 'obliterated', 'annihilated', 'rekt', 'game over'];
+const EXPLOSION_PHRASES = ['kaboom', 'boom', 'ka-blam', 'explosive', 'bang', 'kablammo', 'boooom'];
+const BLAST_PHRASES = ['pew pew', 'bang bang', 'zap zap', 'pew pew pew', 'blam blam', 'zzzap'];
 
 function hitPlayer(player, attackerId, now) {
   if (player.shieldActive) return; // shield absorbs the hit
@@ -401,7 +403,6 @@ function handleInput(playerId, input) {
       explodeFrame: 0,
     });
     player.bombLastUsed.push(now);
-    speak('kaboom');
   }
 
   if (input.type === 'blast') {
@@ -411,6 +412,7 @@ function handleInput(playerId, input) {
     if (available <= 0) return;
     waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: WAVE_MAX });
     player.blastLastUsed.push(now);
+    speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
   }
 
   if (input.type === 'shield') {
@@ -591,6 +593,7 @@ function tick() {
       if (elapsed >= BOMB_FUSE_MS) {
         b.exploding = true;
         b.explodeFrame = 0;
+        speak(EXPLOSION_PHRASES[Math.floor(Math.random() * EXPLOSION_PHRASES.length)]);
       }
       // Kick sliding
       if (b.kickDir) {
