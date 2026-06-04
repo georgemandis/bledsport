@@ -55,39 +55,14 @@ const DEBUG = process.argv.includes('--debug');
 if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
 
 // --- Speech (espeak-ng, Pi only) ---
-const { execFile, spawn } = require('child_process');
+const { execFile } = require('child_process');
 const HAS_ESPEAK = (() => {
   try { require('child_process').execFileSync('which', ['espeak-ng']); return true; }
   catch { return false; }
 })();
 if (HAS_ESPEAK) console.log('espeak-ng detected — audio enabled');
 
-// --- Music (mpg123, Pi only) ---
-const HAS_MPG123 = (() => {
-  try { require('child_process').execFileSync('which', ['mpg123']); return true; }
-  catch { return false; }
-})();
-if (HAS_MPG123) console.log('mpg123 detected — music enabled');
-const MUSIC_FILE = __dirname + '/ledarchgame.mp3';
-let musicProcess = null;
 
-function startMusic() {
-  if (!HAS_MPG123) return;
-  stopMusic();
-  musicProcess = spawn('mpg123', ['--loop', '-1', MUSIC_FILE], {
-    stdio: 'ignore',
-    detached: false,
-  });
-  musicProcess.on('error', () => { musicProcess = null; });
-  musicProcess.on('exit', () => { musicProcess = null; });
-}
-
-function stopMusic() {
-  if (musicProcess) {
-    try { musicProcess.kill(); } catch {}
-    musicProcess = null;
-  }
-}
 
 function speak(text) {
   if (!HAS_ESPEAK) return;
@@ -163,7 +138,6 @@ let nextPowerupDelay = randomBetween(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
 
 function resetGame() {
   gamePhase = 'waiting';
-  stopMusic();
   waves = [];
   powerups = [];
   bombs = [];
@@ -212,7 +186,6 @@ function startGame() {
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
   speak('fight');
-  startMusic();
   console.log(`Game started with ${players.size} players`);
 }
 
@@ -359,7 +332,6 @@ function hitPlayer(player, attackerId, now) {
   // Check for winner
   if (attacker && attacker.score >= WINS_NEEDED) {
     gamePhase = 'victory';
-    stopMusic();
     victoryStart = now;
     victoryColor = attacker.color;
     victoryPlayerName = attacker.name;
