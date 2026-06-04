@@ -10,7 +10,7 @@ const TICK_MS = 33; // ~30fps
 const RESPAWN_MS = 2000;
 
 // Ability cooldowns
-const BOMB_COOLDOWN_MS = 5000;
+const BOMB_COOLDOWN_MS = 1000;
 const BLAST_COOLDOWN_MS = 5000;
 const SHIELD_DURATION_MS = 1000;
 const SHIELD_COOLDOWN_MS = 5000;
