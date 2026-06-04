@@ -341,6 +341,21 @@ function hitPlayer(player, attackerId, now) {
   const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
   speak(`${player.name}, ${phrase}`);
 
+  // Announce score
+  if (attacker) {
+    const scores = [...players.values()]
+      .map(p => `${p.name}, ${p.score}`)
+      .join('. ');
+    setTimeout(() => {
+      speak(`${scores}. out of ${WINS_NEEDED}`);
+      // Check for match point
+      const matchPointPlayers = [...players.values()].filter(p => p.score === WINS_NEEDED - 1);
+      if (matchPointPlayers.length > 0 && gamePhase === 'playing') {
+        setTimeout(() => speak('match point'), 2000);
+      }
+    }, 1500);
+  }
+
   // Check for winner
   if (attacker && attacker.score >= WINS_NEEDED) {
     gamePhase = 'victory';
