@@ -38,26 +38,14 @@ bun server.js
 
 # Start in debug mode (no WLED connection)
 bun server.js --debug
+
+# Start with gamepad config innext-controller.json
+bun server.js --gamepad innext-controller.json
 ```
 
 Open `http://localhost:3000` in a browser to play.
-
-## Timer
-
-There's also a standalone countdown timer that fills the arch from both ends:
-
-```bash
-# Default 5-minute timer
-bun timer.js
-
-# Custom duration (in minutes)
-bun timer.js 10
-```
-
-Ends with a rainbow celebration animation.
 
 ## Files
 
 - `server.js` — game server (game logic, WLED output, websocket server)
 - `index.html` — browser client (input handling, canvas visualization)
-- `timer.js` — standalone LED countdown timer
