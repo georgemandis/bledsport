@@ -28,6 +28,11 @@ const BOMB_EXPLODE_RADIUS = 8;
 const BOMB_EXPLODE_FRAMES = 10;
 const BOMB_KICK_SPEED = 0.5;     // LEDs per tick (half player speed)
 
+// Portal config
+const PORTAL_GLOW_SIZE = 3;      // LEDs of glow at each end
+const PORTAL_MOMENTUM = 4;       // forced moves after teleporting
+const PORTAL_MOMENTUM_MS = 60;   // ms between forced moves
+
 const PLAYER_COLORS = [
   [0, 200, 255],   // cyan
   [255, 80, 200],  // pink
@@ -166,7 +171,18 @@ function createPlayer(id) {
     shieldActive: false,
     shieldActiveUntil: 0,
     shieldLastUsed: 0,
+    // Portal momentum
+    momentum: 0,       // remaining forced moves
+    momentumDir: 0,    // direction of forced moves
+    lastMomentumTime: 0,
   };
+}
+
+// --- Portal wrapping ---
+function wrapPos(pos) {
+  if (pos < 0) return NUM_LEDS - 1;
+  if (pos >= NUM_LEDS) return 0;
+  return pos;
 }
 
 function getZone(pos) {
@@ -200,11 +216,9 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
     if (!playersOverlap(pusher, other)) continue;
     const otherResisting = (other.lastDelta !== 0 && other.lastDelta === -dir);
     if (otherResisting) return true;
-    const targetPos = pusher.pos + dir;
-    const clampedPos = Math.max(0, Math.min(NUM_LEDS - 1, targetPos));
-    if (clampedPos !== targetPos) return true;
+    const targetPos = wrapPos(pusher.pos + dir);
     const oldOtherPos = other.pos;
-    other.pos = clampedPos;
+    other.pos = targetPos;
     const chainBlocked = pushChain(other, dir, originId, visited);
     if (chainBlocked) {
       other.pos = oldOtherPos;
@@ -243,7 +257,12 @@ function handleInput(playerId, input) {
 
     player.lastDelta = delta > 0 ? 1 : -1;
     player.lastMoveTime = now;
-    const newPos = Math.max(0, Math.min(NUM_LEDS - 1, player.pos + delta));
+    let newPos = player.pos + delta;
+    let throughPortal = false;
+    if (newPos < 0 || newPos >= NUM_LEDS) {
+      newPos = wrapPos(newPos);
+      throughPortal = true;
+    }
 
     if (wantsDash) {
       player.pos = newPos;
@@ -252,9 +271,18 @@ function handleInput(playerId, input) {
     } else {
       const oldPos = player.pos;
       player.pos = newPos;
-      const bumpDir = delta > 0 ? 1 : -1;
-      const blocked = pushChain(player, bumpDir, playerId);
-      if (blocked) player.pos = oldPos;
+      if (!throughPortal) {
+        const bumpDir = delta > 0 ? 1 : -1;
+        const blocked = pushChain(player, bumpDir, playerId);
+        if (blocked) player.pos = oldPos;
+      }
+    }
+
+    // Apply portal momentum
+    if (throughPortal) {
+      player.momentum = PORTAL_MOMENTUM;
+      player.momentumDir = delta > 0 ? 1 : -1;
+      player.lastMomentumTime = now;
     }
 
     // Push bombs when walking into them
@@ -262,10 +290,7 @@ function handleInput(playerId, input) {
     for (const b of bombs) {
       if (b.exploding) continue;
       if (b.pos === player.pos) {
-        const newBombPos = b.pos + moveDir;
-        if (newBombPos >= 0 && newBombPos < NUM_LEDS) {
-          b.pos = newBombPos;
-        }
+        b.pos = wrapPos(b.pos + moveDir);
       }
     }
 
@@ -365,6 +390,12 @@ function tick() {
   for (const p of players.values()) {
     if (p.lastDelta !== 0 && now - p.lastMoveTime > 200) p.lastDelta = 0;
     if (!p.hasDash && p.alive && now - p.lastDashTime >= DASH_REGEN_MS) p.hasDash = true;
+    // Portal momentum
+    if (p.momentum > 0 && p.alive && now - p.lastMomentumTime >= PORTAL_MOMENTUM_MS) {
+      p.pos = wrapPos(p.pos + p.momentumDir);
+      p.momentum--;
+      p.lastMomentumTime = now;
+    }
     // Shield expiration
     if (p.shieldActive && now >= p.shieldActiveUntil) {
       p.shieldActive = false;
@@ -424,20 +455,16 @@ function tick() {
         b.kickProgress = (b.kickProgress || 0) + BOMB_KICK_SPEED;
         while (b.kickProgress >= 1) {
           b.kickProgress -= 1;
-          const newPos = b.pos + b.kickDir;
-          if (newPos < 0 || newPos >= NUM_LEDS) {
-            b.kickDir = 0; // hit wall, stop
-            break;
-          }
+          const newPos = wrapPos(b.pos + b.kickDir);
           // Stop if it hits a player
-          let hitWall = false;
+          let hitPlayer = false;
           for (const p of players.values()) {
             if (p.alive && p.pos === newPos) {
-              hitWall = true;
+              hitPlayer = true;
               break;
             }
           }
-          if (hitWall) {
+          if (hitPlayer) {
             b.kickDir = 0;
             break;
           }
@@ -450,6 +477,26 @@ function tick() {
 
   // --- Render ---
   const pixels = new Array(NUM_LEDS).fill(null);
+
+  // Portal glow (LED 0 = orange, LED 191 = blue)
+  const portalPulse = 0.3 + 0.3 * Math.sin(animTime * 4);
+  const portalSwirl = 0.15 * Math.sin(animTime * 7);
+  for (let d = 0; d < PORTAL_GLOW_SIZE; d++) {
+    const fade = (1 - d / PORTAL_GLOW_SIZE) * portalPulse;
+    const swirl2 = portalSwirl * (1 - d / PORTAL_GLOW_SIZE);
+    // Orange portal at LED 0
+    pixels[d] = [
+      Math.round(255 * (fade + swirl2)),
+      Math.round(140 * (fade + swirl2)),
+      Math.round(20 * fade),
+    ];
+    // Blue portal at LED 191
+    pixels[NUM_LEDS - 1 - d] = [
+      Math.round(20 * fade),
+      Math.round(100 * (fade + swirl2)),
+      Math.round(255 * (fade + swirl2)),
+    ];
+  }
 
   // Power-ups: rainbow gradient oscillation
   for (const pu of powerups) {

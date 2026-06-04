@@ -189,6 +189,17 @@ const renderer = {
     const pixels = new Array(NUM_LEDS).fill(null);
     const t = gameState.animTime;
 
+    // Portal glow
+    const PORTAL_GLOW = 3;
+    const portalPulse = 0.3 + 0.3 * Math.sin(t * 4);
+    const portalSwirl = 0.15 * Math.sin(t * 7);
+    for (let d = 0; d < PORTAL_GLOW; d++) {
+      const fade = (1 - d / PORTAL_GLOW) * portalPulse;
+      const s2 = portalSwirl * (1 - d / PORTAL_GLOW);
+      pixels[d] = [Math.round(255*(fade+s2)), Math.round(140*(fade+s2)), Math.round(20*fade)];
+      pixels[NUM_LEDS-1-d] = [Math.round(20*fade), Math.round(100*(fade+s2)), Math.round(255*(fade+s2))];
+    }
+
     // Power-ups: rainbow shimmer
     for (const pu of gameState.powerups) {
       const hue = (t * 2 + pu.pos * 0.02) % 1;
