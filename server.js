@@ -827,6 +827,7 @@ const server = Bun.serve({
           clients.set(ws, id);
           ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
           console.log(`Player ${id} joined (${players.size} total)`);
+          speak(`${player.name} has joined`);
           return;
         }
         if (input.type === 'start_game') {
@@ -910,6 +911,7 @@ if (gamepadMapping) {
             players.set(id, player);
             padPlayers.set(pad.index, id);
             console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
+            speak(`${player.name} has joined`);
           }
           // Try to start if enough players
           if (players.size >= 2) startGame();
