@@ -6,7 +6,7 @@ const WAVE_SPEED = 2;
 const WAVE_MAX = 12;
 const PLAYER_WIDTH = 1;
 const DASH_REGEN_MS = 3000;
-const TICK_MS = 33; // ~30fps
+const TICK_MS = 16; // ~60fps
 const RESPAWN_MS = 2000;
 
 // Ability cooldowns
@@ -77,41 +77,50 @@ function speak(text) {
   ], (err) => { if (err) {} }); // fire and forget
 }
 
-// --- WLED connection ---
-const WLED_WS_URL = 'ws://10.100.3.132/ws';
-const LED_START = 1;
-let wledWs = null;
-let wledReady = false;
+// --- WLED connection (DDP over UDP) ---
+const WLED_HOST = '10.100.3.132';
+const WLED_DDP_PORT = 4048;
+const dgram = require('node:dgram');
+let ddpSocket = null;
+let ddpSeq = 0;
 
 function connectWled() {
   if (DEBUG) return;
-  try {
-    wledWs = new WebSocket(WLED_WS_URL);
-    wledWs.onopen = () => { wledReady = true; console.log('WLED connected'); };
-    wledWs.onclose = () => { wledReady = false; setTimeout(connectWled, 2000); };
-    wledWs.onerror = () => { wledReady = false; wledWs.close(); };
-  } catch (e) {
-    console.log('WLED connection failed, retrying...');
-    setTimeout(connectWled, 2000);
-  }
+  ddpSocket = dgram.createSocket('udp4');
+  ddpSocket.on('error', (err) => {
+    console.log('DDP socket error:', err.message);
+  });
+  console.log(`WLED DDP ready → ${WLED_HOST}:${WLED_DDP_PORT}`);
 }
 
 function sendToWled(pixels) {
-  if (!wledWs || !wledReady) return;
-  const colors = [0, NUM_LEDS, '000000'];
-  for (let i = 0; i < NUM_LEDS; i++) {
+  if (!ddpSocket) return;
+  const pixelCount = NUM_LEDS;
+  const dataLen = pixelCount * 3;
+  ddpSeq = (ddpSeq % 15) + 1;
+
+  // 10-byte DDP header + RGB data
+  const buf = Buffer.alloc(10 + dataLen);
+  buf[0] = 0x41; // VER1 (0x40) | PUSH (0x01) — version 1, push (last packet)
+  buf[1] = ddpSeq;
+  buf[2] = 0x01; // data type: RGB, 8 bits per channel
+  buf[3] = 0x01; // source ID
+  buf.writeUInt32BE(0, 4); // data offset (0 — single packet)
+  buf.writeUInt16BE(dataLen, 8); // data length
+
+  // Fill RGB pixel data
+  for (let i = 0; i < pixelCount; i++) {
+    const off = 10 + i * 3;
     const c = pixels[i];
-    if (!c) continue;
-    const hex = c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
-    colors.push(i, hex);
+    if (c) {
+      buf[off]     = Math.max(0, Math.min(255, Math.round(c[0])));
+      buf[off + 1] = Math.max(0, Math.min(255, Math.round(c[1])));
+      buf[off + 2] = Math.max(0, Math.min(255, Math.round(c[2])));
+    }
+    // else stays 0,0,0 (black) from Buffer.alloc
   }
-  wledWs.send(JSON.stringify({
-    on: true, bri: 255, transition: 0, ps: -1, pl: -1, lor: 1,
-    seg: [
-      { id: 0, start: LED_START, stop: LED_START + NUM_LEDS, frz: true, fx: 0, i: colors },
-      { id: 1, stop: 0 }
-    ]
-  }));
+
+  ddpSocket.send(buf, WLED_DDP_PORT, WLED_HOST);
 }
 
 // --- Game state ---
@@ -953,7 +962,7 @@ if (gamepadMappings.length > 0) {
     }
   }
 
-  const DPAD_REPEAT_MS = 80;
+  const DPAD_REPEAT_MS = 40;
 
   // Track which pad index is bound to which player id (global for resetGame access)
   globalThis.padPlayers = new Map();
