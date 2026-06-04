@@ -250,6 +250,7 @@ function handleInput(playerId, input) {
 
   if (input.type === 'move') {
     if (!player.alive) return;
+    if (player.momentum > 0) return; // locked during portal momentum
     const wantsDash = input.shift && player.hasDash;
     const step = wantsDash ? 5 : 1;
     const delta = getDelta(input.dir, player.pos) * step;
