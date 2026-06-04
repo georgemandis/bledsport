@@ -109,6 +109,16 @@ function sendToWled(pixels) {
 }
 
 // --- Game state ---
+const WINS_NEEDED = 3;
+const VICTORY_DURATION_MS = 5000;
+const IDLE_RESET_MS = 60000;
+
+let gamePhase = 'waiting'; // 'waiting' | 'playing' | 'victory'
+let victoryStart = 0;
+let victoryColor = [255, 255, 255];
+let victoryPlayerName = '';
+let lastInputTime = Date.now();
+
 let nextPlayerId = 1;
 const players = new Map();
 let waves = [];
@@ -118,6 +128,57 @@ let explosions = []; // {center, radius, frame, maxFrames}
 let animTime = 0;
 let lastPowerupSpawn = Date.now();
 let nextPowerupDelay = randomBetween(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
+
+function resetGame() {
+  gamePhase = 'waiting';
+  waves = [];
+  powerups = [];
+  bombs = [];
+  explosions = [];
+  // Remove all players — they must press Start/Join again
+  players.clear();
+  // Reset browser clients to spectator
+  for (const [ws, id] of clients.entries()) {
+    if (id) {
+      clients.set(ws, null);
+      ws.send(JSON.stringify({ type: 'reset' }));
+    }
+  }
+  // Reset gamepad players
+  if (globalThis.padPlayers) globalThis.padPlayers.clear();
+  lastPowerupSpawn = Date.now();
+  lastInputTime = Date.now();
+  console.log('Game reset — waiting for players');
+}
+
+function startGame() {
+  if (players.size < 2) return;
+  gamePhase = 'playing';
+  // Reset scores and respawn everyone
+  for (const p of players.values()) {
+    p.score = 0;
+    p.alive = true;
+    p.pos = spawnPos();
+    p.lastDelta = 0;
+    p.hasDash = true;
+    p.shieldActive = false;
+    p.bombMaxCharges = 1;
+    p.bombCharges = 1;
+    p.bombLastUsed = [];
+    p.blastMaxCharges = 0;
+    p.blastCharges = 0;
+    p.blastLastUsed = [];
+    p.shieldLastUsed = 0;
+    p.momentum = 0;
+  }
+  waves = [];
+  powerups = [];
+  bombs = [];
+  lastPowerupSpawn = Date.now();
+  lastInputTime = Date.now();
+  speak('fight');
+  console.log(`Game started with ${players.size} players`);
+}
 
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
@@ -240,13 +301,25 @@ function hitPlayer(player, attackerId, now) {
   if (attacker) attacker.score++;
   const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
   speak(`${player.name}, ${phrase}`);
+
+  // Check for winner
+  if (attacker && attacker.score >= WINS_NEEDED) {
+    gamePhase = 'victory';
+    victoryStart = now;
+    victoryColor = attacker.color;
+    victoryPlayerName = attacker.name;
+    speak(`${attacker.name} wins`);
+    console.log(`${attacker.name} wins!`);
+  }
 }
 
 // --- Input handling ---
 function handleInput(playerId, input) {
   const player = players.get(playerId);
   if (!player) return;
+  if (gamePhase !== 'playing') return; // only accept input during gameplay
   const now = Date.now();
+  lastInputTime = now;
 
   if (input.type === 'move') {
     if (!player.alive) return;
@@ -378,6 +451,74 @@ function handleInput(playerId, input) {
 function tick() {
   const now = Date.now();
   animTime += 0.03;
+
+  // --- Victory phase ---
+  if (gamePhase === 'victory') {
+    const elapsed = now - victoryStart;
+    if (elapsed >= VICTORY_DURATION_MS) {
+      resetGame();
+      return;
+    }
+    // Victory animation: expanding waves in winner's color
+    const pixels = new Array(NUM_LEDS).fill(null);
+    const t = elapsed / 1000;
+    const [cr, cg, cb] = victoryColor;
+    for (let i = 0; i < NUM_LEDS; i++) {
+      const wave1 = Math.sin(t * 6 + i * 0.15);
+      const wave2 = Math.sin(t * 4 - i * 0.1);
+      const bri = 0.3 + 0.7 * Math.max(0, (wave1 + wave2) / 2);
+      pixels[i] = [Math.round(cr * bri), Math.round(cg * bri), Math.round(cb * bri)];
+    }
+    sendToWled(pixels);
+    broadcast({
+      type: 'state',
+      gamePhase: 'victory',
+      victoryColor,
+      victoryPlayerName,
+      players: serializePlayers(),
+      waves: [], powerups: [], bombs: [], animTime,
+    });
+    return;
+  }
+
+  // --- Waiting phase ---
+  if (gamePhase === 'waiting') {
+    // Idle animation: gentle portal glow, rainbow idle
+    const pixels = new Array(NUM_LEDS).fill(null);
+    // Portal glow
+    const portalPulse = 0.3 + 0.3 * Math.sin(animTime * 4);
+    const portalSwirl = 0.15 * Math.sin(animTime * 7);
+    for (let d = 0; d < PORTAL_GLOW_SIZE; d++) {
+      const fade = (1 - d / PORTAL_GLOW_SIZE) * portalPulse;
+      const swirl2 = portalSwirl * (1 - d / PORTAL_GLOW_SIZE);
+      pixels[d] = [Math.round(255*(fade+swirl2)), Math.round(140*(fade+swirl2)), Math.round(20*fade)];
+      pixels[NUM_LEDS-1-d] = [Math.round(20*fade), Math.round(100*(fade+swirl2)), Math.round(255*(fade+swirl2))];
+    }
+    // Gentle rainbow idle
+    for (let i = PORTAL_GLOW_SIZE; i < NUM_LEDS - PORTAL_GLOW_SIZE; i++) {
+      const hue = (animTime * 0.3 + i / NUM_LEDS) % 1;
+      const bri = 0.05 + 0.03 * Math.sin(animTime * 2 + i * 0.1);
+      const [r, g, b] = hslToRgb(hue, 1, bri);
+      pixels[i] = [r, g, b];
+    }
+    sendToWled(pixels);
+    broadcast({
+      type: 'state',
+      gamePhase: 'waiting',
+      players: serializePlayers(),
+      waves: [], powerups: [], bombs: [], animTime,
+    });
+    return;
+  }
+
+  // --- Playing phase ---
+  // Idle timeout
+  if (now - lastInputTime >= IDLE_RESET_MS) {
+    console.log('No input for 60s — resetting');
+    speak('game over, no activity');
+    resetGame();
+    return;
+  }
 
   // Spawn power-ups
   if (now - lastPowerupSpawn >= nextPowerupDelay && powerups.length < POWERUP_MAX) {
@@ -593,6 +734,7 @@ function tick() {
   sendToWled(pixels);
   broadcast({
     type: 'state',
+    gamePhase: 'playing',
     players: serializePlayers(),
     waves: serializeWaves(),
     powerups: powerups.map(p => ({ pos: p.pos, type: p.type })),
@@ -677,6 +819,7 @@ const server = Bun.serve({
       try {
         const input = JSON.parse(msg);
         if (input.type === 'join') {
+          if (gamePhase !== 'waiting') return;
           if (clients.get(ws)) return; // already joined
           const id = nextPlayerId++;
           const player = createPlayer(id);
@@ -684,6 +827,10 @@ const server = Bun.serve({
           clients.set(ws, id);
           ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
           console.log(`Player ${id} joined (${players.size} total)`);
+          return;
+        }
+        if (input.type === 'start_game') {
+          if (gamePhase === 'waiting' && players.size >= 2) startGame();
           return;
         }
         const id = clients.get(ws);
@@ -716,8 +863,9 @@ if (gamepadMapping) {
 
   const DPAD_REPEAT_MS = 80;
 
-  // Track which pad index is bound to which player id
-  const padPlayers = new Map(); // pad.index -> playerId
+  // Track which pad index is bound to which player id (global for resetGame access)
+  globalThis.padPlayers = new Map();
+  const padPlayers = globalThis.padPlayers;
   const padDpadIntervals = new Map(); // pad.index -> { dir: intervalId }
 
   function startDpadRepeat(pad, dir) {
@@ -750,16 +898,24 @@ if (gamepadMapping) {
     pad.on('press', (button) => {
       const playerId = padPlayers.get(pad.index);
 
-      // Start = join
+      // Start = join (waiting) or no-op (playing/victory)
       if (button === 'start') {
-        if (playerId) return; // already joined
-        const id = nextPlayerId++;
-        const player = createPlayer(id);
-        player.name = `Pad${pad.index + 1}`;
-        players.set(id, player);
-        padPlayers.set(pad.index, id);
-        console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
-        return;
+        if (gamePhase === 'victory') return;
+        if (gamePhase === 'waiting') {
+          if (!playerId) {
+            // Join
+            const id = nextPlayerId++;
+            const player = createPlayer(id);
+            player.name = `Pad${pad.index + 1}`;
+            players.set(id, player);
+            padPlayers.set(pad.index, id);
+            console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
+          }
+          // Try to start if enough players
+          if (players.size >= 2) startGame();
+          return;
+        }
+        return; // already playing
       }
 
       if (!playerId) return; // not joined yet

@@ -51,6 +51,7 @@
 <div class="status" id="status">Connecting...</div>
 <div class="scoreboard" id="scoreboard"></div>
 <button id="joinBtn" style="margin-top:1rem; padding:0.6rem 2rem; font-family:monospace; font-size:1rem; background:#2a2; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Join Game</button>
+<button id="startBtn" style="margin-top:0.5rem; padding:0.6rem 2rem; font-family:monospace; font-size:1rem; background:#c60; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Start Game</button>
 
 <script>
 // ============================================================
@@ -90,8 +91,16 @@ const conn = {
       if (msg.type === 'welcome') {
         this.myId = msg.id;
         this.myColor = msg.color;
-        document.getElementById('status').textContent = `You are Player ${msg.id}`;
+        document.getElementById('status').textContent = `You are Player ${msg.id} — waiting for game to start`;
         document.getElementById('joinBtn').style.display = 'none';
+        document.getElementById('startBtn').style.display = '';
+      }
+      if (msg.type === 'reset') {
+        this.myId = null;
+        document.getElementById('status').textContent = 'Game reset — join to play again';
+        document.getElementById('status').style.color = '#4a4';
+        document.getElementById('joinBtn').style.display = '';
+        document.getElementById('startBtn').style.display = 'none';
       }
       if (msg.type === 'state') {
         gameState.players = msg.players;
@@ -99,6 +108,15 @@ const conn = {
         gameState.powerups = msg.powerups || [];
         gameState.bombs = msg.bombs || [];
         gameState.animTime = msg.animTime;
+        gameState.gamePhase = msg.gamePhase;
+        gameState.victoryColor = msg.victoryColor;
+        gameState.victoryPlayerName = msg.victoryPlayerName;
+        if (msg.gamePhase === 'playing') {
+          document.getElementById('startBtn').style.display = 'none';
+          if (this.myId) {
+            document.getElementById('status').textContent = `You are Player ${this.myId}`;
+          }
+        }
         renderer.draw();
       }
     };
@@ -130,6 +148,9 @@ const gameState = {
   powerups: [],
   bombs: [],
   animTime: 0,
+  gamePhase: 'waiting',
+  victoryColor: null,
+  victoryPlayerName: '',
 };
 
 // ============================================================
@@ -319,41 +340,57 @@ const renderer = {
       ctx.fill();
     }
 
-    // HUD
-    const me = gameState.players.find(p => p.id === conn.myId);
-    if (me) {
-      const zone = ZONES.find(z => me.pos >= z.start && me.pos <= z.end) || ZONES[0];
-      const zoneLabel = zone.name === 'left' ? 'LEFT [updown]' : zone.name === 'top' ? 'TOP [leftright]' : 'RIGHT [updown]';
-
-      ctx.fillStyle = `rgb(${me.color.join(',')})`;
-      ctx.font = 'bold 24px monospace';
+    // Phase-specific HUD
+    if (gameState.gamePhase === 'victory' && gameState.victoryColor) {
+      const [vr, vg, vb] = gameState.victoryColor;
+      ctx.fillStyle = `rgb(${vr},${vg},${vb})`;
+      ctx.font = 'bold 28px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`#${me.pos + 1}`, canvas.width / 2, canvas.height / 2 - 10);
+      ctx.fillText(`${gameState.victoryPlayerName} WINS!`, canvas.width / 2, canvas.height / 2);
+    } else if (gameState.gamePhase === 'waiting') {
       ctx.fillStyle = '#888';
-      ctx.font = '12px monospace';
-      ctx.fillText(zoneLabel, canvas.width / 2, canvas.height / 2 + 8);
-
-      // Status indicators
-      ctx.font = '13px monospace';
+      ctx.font = 'bold 18px monospace';
       ctx.textAlign = 'center';
-      const y0 = canvas.height / 2 + 30;
-      // Blast
-      const blastLabel = `[A] blast ${me.blastCharges}/${me.blastMax}`;
-      ctx.fillStyle = me.blastCharges > 0 ? '#ff0' : '#633';
-      ctx.fillText(blastLabel, canvas.width / 2 - 80, y0);
-      // Bomb
-      const bombLabel = `[B] bomb ${me.bombCharges}/${me.bombMax}`;
-      ctx.fillStyle = me.bombCharges > 0 ? '#f80' : '#633';
-      ctx.fillText(bombLabel, canvas.width / 2, y0);
-      // Shield
-      const shieldLabel = me.shieldActive ? '[X] SHIELD!' : me.shieldReady ? '[X] shield' : '[X] shield...';
-      ctx.fillStyle = me.shieldActive ? '#fff' : me.shieldReady ? '#adf' : '#633';
-      ctx.fillText(shieldLabel, canvas.width / 2 + 80, y0);
+      ctx.fillText('Press Start to join', canvas.width / 2, canvas.height / 2 - 10);
+      ctx.font = '13px monospace';
+      ctx.fillText(`${gameState.players.length} player(s) waiting`, canvas.width / 2, canvas.height / 2 + 15);
+    } else {
+      // Playing HUD
+      const me = gameState.players.find(p => p.id === conn.myId);
+      if (me) {
+        const zone = ZONES.find(z => me.pos >= z.start && me.pos <= z.end) || ZONES[0];
+        const zoneLabel = zone.name === 'left' ? 'LEFT [updown]' : zone.name === 'top' ? 'TOP [leftright]' : 'RIGHT [updown]';
 
-      if (!me.alive) {
-        ctx.fillStyle = '#f44';
-        ctx.font = 'bold 18px monospace';
-        ctx.fillText('DESTROYED — respawning...', canvas.width / 2, canvas.height / 2 + 55);
+        ctx.fillStyle = `rgb(${me.color.join(',')})`;
+        ctx.font = 'bold 24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`#${me.pos + 1}`, canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillStyle = '#888';
+        ctx.font = '12px monospace';
+        ctx.fillText(zoneLabel, canvas.width / 2, canvas.height / 2 + 8);
+
+        // Status indicators
+        ctx.font = '13px monospace';
+        ctx.textAlign = 'center';
+        const y0 = canvas.height / 2 + 30;
+        // Blast
+        const blastLabel = `[A] blast ${me.blastCharges}/${me.blastMax}`;
+        ctx.fillStyle = me.blastCharges > 0 ? '#ff0' : '#633';
+        ctx.fillText(blastLabel, canvas.width / 2 - 80, y0);
+        // Bomb
+        const bombLabel = `[B] bomb ${me.bombCharges}/${me.bombMax}`;
+        ctx.fillStyle = me.bombCharges > 0 ? '#f80' : '#633';
+        ctx.fillText(bombLabel, canvas.width / 2, y0);
+        // Shield
+        const shieldLabel = me.shieldActive ? '[X] SHIELD!' : me.shieldReady ? '[X] shield' : '[X] shield...';
+        ctx.fillStyle = me.shieldActive ? '#fff' : me.shieldReady ? '#adf' : '#633';
+        ctx.fillText(shieldLabel, canvas.width / 2 + 80, y0);
+
+        if (!me.alive) {
+          ctx.fillStyle = '#f44';
+          ctx.font = 'bold 18px monospace';
+          ctx.fillText('DESTROYED — respawning...', canvas.width / 2, canvas.height / 2 + 55);
+        }
       }
     }
 
@@ -409,6 +446,10 @@ const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight
 
 document.getElementById('joinBtn').addEventListener('click', () => {
   conn.send({ type: 'join' });
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  conn.send({ type: 'start_game' });
 });
 
 document.addEventListener('keydown', (e) => {
