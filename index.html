@@ -45,6 +45,7 @@
   <b>A</b> blast &nbsp;&nbsp;
   <b>B</b> bomb &nbsp;&nbsp;
   <b>X</b> shield &nbsp;&nbsp;
+  <b>Y</b> kick bomb &nbsp;&nbsp;
   <b>C</b> cycle color
 </div>
 <div class="status" id="status">Connecting...</div>
@@ -412,6 +413,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'a' || e.key === 'A') { conn.send({ type: 'blast' }); return; }
   if (e.key === 'b' || e.key === 'B' || e.key === ' ') { e.preventDefault(); conn.send({ type: 'bomb' }); return; }
   if (e.key === 'x' || e.key === 'X') { conn.send({ type: 'shield' }); return; }
+  if (e.key === 'y' || e.key === 'Y') { conn.send({ type: 'kick' }); return; }
   if (e.key === 'c' || e.key === 'C') { conn.send({ type: 'cycle_color' }); return; }
 });
 

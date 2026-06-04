@@ -26,6 +26,7 @@ const BOMB_WIDTH = 5;
 const BOMB_FUSE_MS = 3000;       // shrinks over this time
 const BOMB_EXPLODE_RADIUS = 8;
 const BOMB_EXPLODE_FRAMES = 10;
+const BOMB_KICK_SPEED = 0.5;     // LEDs per tick (half player speed)
 
 const PLAYER_COLORS = [
   [0, 200, 255],   // cyan
@@ -256,6 +257,18 @@ function handleInput(playerId, input) {
       if (blocked) player.pos = oldPos;
     }
 
+    // Push bombs when walking into them
+    const moveDir = delta > 0 ? 1 : -1;
+    for (const b of bombs) {
+      if (b.exploding) continue;
+      if (b.pos === player.pos) {
+        const newBombPos = b.pos + moveDir;
+        if (newBombPos >= 0 && newBombPos < NUM_LEDS) {
+          b.pos = newBombPos;
+        }
+      }
+    }
+
     // Check power-up pickup
     for (let i = powerups.length - 1; i >= 0; i--) {
       if (powerups[i].pos === player.pos) {
@@ -307,6 +320,17 @@ function handleInput(playerId, input) {
     if (now - player.shieldLastUsed < SHIELD_COOLDOWN_MS) return;
     player.shieldActive = true;
     player.shieldActiveUntil = now + SHIELD_DURATION_MS;
+  }
+
+  if (input.type === 'kick') {
+    if (!player.alive) return;
+    const dir = input.dir ? getDelta(input.dir, player.pos) : player.lastDelta;
+    if (!dir) return;
+    // Find a non-exploding bomb adjacent to the player
+    const bomb = bombs.find(b => !b.exploding && Math.abs(b.pos - player.pos) <= 1);
+    if (!bomb) return;
+    bomb.kickDir = dir;
+    bomb.kickProgress = 0;
   }
 
   // Legacy: browser 'fire' uses whatever the player last picked up (backwards compat)
@@ -394,6 +418,31 @@ function tick() {
       if (elapsed >= BOMB_FUSE_MS) {
         b.exploding = true;
         b.explodeFrame = 0;
+      }
+      // Kick sliding
+      if (b.kickDir) {
+        b.kickProgress = (b.kickProgress || 0) + BOMB_KICK_SPEED;
+        while (b.kickProgress >= 1) {
+          b.kickProgress -= 1;
+          const newPos = b.pos + b.kickDir;
+          if (newPos < 0 || newPos >= NUM_LEDS) {
+            b.kickDir = 0; // hit wall, stop
+            break;
+          }
+          // Stop if it hits a player
+          let hitWall = false;
+          for (const p of players.values()) {
+            if (p.alive && p.pos === newPos) {
+              hitWall = true;
+              break;
+            }
+          }
+          if (hitWall) {
+            b.kickDir = 0;
+            break;
+          }
+          b.pos = newPos;
+        }
       }
     }
   }
@@ -684,6 +733,13 @@ if (gamepadMapping) {
 
       // X = shield
       if (button === 'x') handleInput(playerId, { type: 'shield' });
+
+      // Y = kick bomb in held d-pad direction
+      if (button === 'y') {
+        const held = pad.state.buttons;
+        const dir = held.dpad_up ? 'up' : held.dpad_down ? 'down' : held.dpad_left ? 'left' : held.dpad_right ? 'right' : null;
+        handleInput(playerId, { type: 'kick', dir });
+      }
 
       // L or R = dash in held d-pad direction
       if (button === 'l' || button === 'r') {
