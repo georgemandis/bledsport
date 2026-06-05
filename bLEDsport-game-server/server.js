@@ -916,7 +916,7 @@ function connectExternal() {
 }
 
 const server = Bun.serve({
-  port: 3000,
+  port: Number(process.env.PORT) || 80,
   fetch(req, server) {
     const url = new URL(req.url);
     if (url.pathname === '/ws') {
