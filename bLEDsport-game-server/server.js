@@ -97,12 +97,14 @@ function musicPlay(file) {
   if (!hasMpg123) return;
   musicStop();
   const filePath = path.resolve(__dirname, 'assets', file);
+  console.log('Music path:', filePath);
   mpg123 = nodeSpawn('mpg123', ['--loop', '-1', '--quiet', filePath], {
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
-  mpg123.on('error', () => { mpg123 = null; });
-  mpg123.on('exit', () => { mpg123 = null; });
-  console.log('Music playing:', file);
+  mpg123.stderr.on('data', (d) => console.log('mpg123 stderr:', d.toString().trim()));
+  mpg123.on('error', (err) => { console.log('mpg123 error:', err.message); mpg123 = null; });
+  mpg123.on('exit', (code, signal) => { console.log('mpg123 exit:', code, signal); mpg123 = null; });
+  console.log('Music playing:', file, '(pid ' + mpg123.pid + ')');
 }
 
 function musicStop() {
