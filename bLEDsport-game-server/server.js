@@ -79,49 +79,42 @@ function speak(text) {
 
 // --- Music (mpg123 in remote-control mode) ---
 const path = require('path');
+const { spawn: nodeSpawn } = require('child_process');
 let mpg123 = null;
 let musicPlaying = false;
 let currentTrack = null;
 
-async function initMusic() {
+function initMusic() {
   try {
     require('child_process').execFileSync('which', ['mpg123']);
   } catch {
     console.log('mpg123 not found — music disabled');
     return;
   }
-  const proc = Bun.spawn(['mpg123', '--remote'], {
-    stdin: 'pipe',
-    stdout: 'pipe',
-    stderr: 'ignore',
+  const proc = nodeSpawn('mpg123', ['--remote'], {
+    stdio: ['pipe', 'pipe', 'ignore'],
   });
   mpg123 = proc;
-  // Monitor stdout for end-of-track to loop
-  (async () => {
-    const reader = proc.stdout.getReader();
-    const decoder = new TextDecoder();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const text = decoder.decode(value);
-        if (text.includes('@P 0') && musicPlaying && currentTrack) {
-          musicCommand(`LOAD ${currentTrack}`);
-        }
-      }
-    } catch {}
-    console.log('mpg123 exited');
+  proc.stdin.on('error', () => {}); // prevent crash on broken pipe
+  proc.stdout.on('data', (data) => {
+    const text = data.toString();
+    if (text.includes('@P 0') && musicPlaying && currentTrack) {
+      musicCommand(`LOAD ${currentTrack}`);
+    }
+  });
+  proc.on('exit', (code) => {
+    console.log('mpg123 exited with code', code);
     mpg123 = null;
     musicPlaying = false;
-  })();
-  console.log('mpg123 remote-control ready');
+  });
+  // Keep the process alive — unref so it doesn't block shutdown,
+  // but don't let stdin end prematurely
+  console.log('mpg123 remote-control ready (pid ' + proc.pid + ')');
 }
 
 function musicCommand(cmd) {
-  if (!mpg123 || !mpg123.stdin) return;
-  const writer = mpg123.stdin.getWriter();
-  writer.write(new TextEncoder().encode(cmd + '\n'));
-  writer.releaseLock();
+  if (!mpg123 || !mpg123.stdin.writable) return;
+  mpg123.stdin.write(cmd + '\n');
 }
 
 function musicPlay(file) {
