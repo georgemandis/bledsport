@@ -1,0 +1,14 @@
+[Unit]
+Description=bLEDsport
+After=network.target
+
+[Service]
+ExecStart=/home/recurse/.bun/bin/bun /home/recurse/bledsport/bLEDsport-game-server/server.js --gamepad innext-controller.json --gamepad logitech-controller.json
+Restart=always
+User=recurse
+WorkingDirectory=/home/recurse/bledsport/bLEDsport-game-server
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
+
