@@ -854,14 +854,30 @@ function hslToRgb(h, s, l) {
 // --- WebSocket server ---
 const clients = new Map();
 
+let lastExternalSnapshot = '';
+
 function broadcast(msg) {
   const data = JSON.stringify(msg);
   for (const ws of clients.keys()) {
     if (ws.readyState === 1) ws.send(data);
   }
-  // Forward to external server
+  // Forward to external server only when state meaningfully changes
   if (externalWs && externalWs.readyState === 1) {
-    externalWs.send(data);
+    // Snapshot the fields that matter (ignore animTime which changes every tick)
+    const snapshot = JSON.stringify({
+      gamePhase: msg.gamePhase,
+      players: msg.players,
+      waves: msg.waves,
+      powerups: msg.powerups,
+      bombs: msg.bombs,
+      fires: msg.fires,
+      victoryColor: msg.victoryColor,
+      victoryPlayerName: msg.victoryPlayerName,
+    });
+    if (snapshot !== lastExternalSnapshot) {
+      lastExternalSnapshot = snapshot;
+      externalWs.send(data);
+    }
   }
 }
 
