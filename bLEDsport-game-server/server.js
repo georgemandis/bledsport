@@ -77,58 +77,38 @@ function speak(text) {
   ], (err) => { if (err) {} }); // fire and forget
 }
 
-// --- Music (mpg123 in remote-control mode) ---
+// --- Music (mpg123) ---
 const path = require('path');
 const { spawn: nodeSpawn } = require('child_process');
 let mpg123 = null;
-let musicPlaying = false;
-let currentTrack = null;
+let hasMpg123 = false;
 
 function initMusic() {
   try {
     require('child_process').execFileSync('which', ['mpg123']);
+    hasMpg123 = true;
+    console.log('mpg123 found — music enabled');
   } catch {
     console.log('mpg123 not found — music disabled');
-    return;
   }
-  const proc = nodeSpawn('mpg123', ['--remote'], {
-    stdio: ['pipe', 'pipe', 'ignore'],
-  });
-  mpg123 = proc;
-  proc.stdin.on('error', () => {}); // prevent crash on broken pipe
-  proc.stdout.on('data', (data) => {
-    const text = data.toString();
-    if (text.includes('@P 0') && musicPlaying && currentTrack) {
-      musicCommand(`LOAD ${currentTrack}`);
-    }
-  });
-  proc.on('exit', (code) => {
-    console.log('mpg123 exited with code', code);
-    mpg123 = null;
-    musicPlaying = false;
-  });
-  // Keep the process alive — unref so it doesn't block shutdown,
-  // but don't let stdin end prematurely
-  console.log('mpg123 remote-control ready (pid ' + proc.pid + ')');
-}
-
-function musicCommand(cmd) {
-  if (!mpg123 || !mpg123.stdin.writable) return;
-  mpg123.stdin.write(cmd + '\n');
 }
 
 function musicPlay(file) {
-  if (!mpg123) return;
-  currentTrack = path.resolve(__dirname, 'assets', file);
-  musicCommand(`LOAD ${currentTrack}`);
-  musicPlaying = true;
+  if (!hasMpg123) return;
+  musicStop();
+  const filePath = path.resolve(__dirname, 'assets', file);
+  mpg123 = nodeSpawn('mpg123', ['--loop', '-1', '--quiet', filePath], {
+    stdio: 'ignore',
+  });
+  mpg123.on('error', () => { mpg123 = null; });
+  mpg123.on('exit', () => { mpg123 = null; });
+  console.log('Music playing:', file);
 }
 
 function musicStop() {
   if (!mpg123) return;
-  musicCommand('STOP');
-  musicPlaying = false;
-  currentTrack = null;
+  mpg123.kill();
+  mpg123 = null;
 }
 
 // --- WLED connection (DDP over UDP) ---
