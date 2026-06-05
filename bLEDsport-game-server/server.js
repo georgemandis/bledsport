@@ -78,44 +78,50 @@ function speak(text) {
 }
 
 // --- Music (mpg123 in remote-control mode) ---
-const { spawn } = require('child_process');
 const path = require('path');
 let mpg123 = null;
 let musicPlaying = false;
 let currentTrack = null;
 
-function initMusic() {
+async function initMusic() {
   try {
     require('child_process').execFileSync('which', ['mpg123']);
   } catch {
     console.log('mpg123 not found — music disabled');
     return;
   }
-  mpg123 = spawn('mpg123', ['--remote'], {
-    stdio: ['pipe', 'pipe', 'pipe'],
+  const proc = Bun.spawn(['mpg123', '--remote'], {
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'ignore',
   });
-  mpg123.on('error', (err) => {
-    console.log('mpg123 error:', err.message);
-    mpg123 = null;
-  });
-  mpg123.on('exit', () => {
+  mpg123 = proc;
+  // Monitor stdout for end-of-track to loop
+  (async () => {
+    const reader = proc.stdout.getReader();
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value);
+        if (text.includes('@P 0') && musicPlaying && currentTrack) {
+          musicCommand(`LOAD ${currentTrack}`);
+        }
+      }
+    } catch {}
     console.log('mpg123 exited');
     mpg123 = null;
     musicPlaying = false;
-  });
-  // Listen for end-of-track to loop
-  mpg123.stdout.on('data', (data) => {
-    if (data.toString().includes('@P 0') && musicPlaying && currentTrack) {
-      musicCommand(`LOAD ${currentTrack}`);
-    }
-  });
-  mpg123.stderr.resume();
+  })();
   console.log('mpg123 remote-control ready');
 }
 
 function musicCommand(cmd) {
-  if (!mpg123 || !mpg123.stdin.writable) return;
-  mpg123.stdin.write(cmd + '\n');
+  if (!mpg123 || !mpg123.stdin) return;
+  const writer = mpg123.stdin.getWriter();
+  writer.write(new TextEncoder().encode(cmd + '\n'));
+  writer.releaseLock();
 }
 
 function musicPlay(file) {
