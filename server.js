@@ -962,7 +962,7 @@ if (gamepadMappings.length > 0) {
     }
   }
 
-  const DPAD_REPEAT_MS = 40;
+  const DPAD_REPEAT_MS = 25;
 
   // Track which pad index is bound to which player id (global for resetGame access)
   globalThis.padPlayers = new Map();
