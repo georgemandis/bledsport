@@ -859,6 +859,60 @@ function broadcast(msg) {
   for (const ws of clients.keys()) {
     if (ws.readyState === 1) ws.send(data);
   }
+  // Forward to external server
+  if (externalWs && externalWs.readyState === 1) {
+    externalWs.send(data);
+  }
+}
+
+// --- External server relay ---
+const EXTERNAL_SERVER_URL = process.env.EXTERNAL_SERVER_URL || '';
+const EXTERNAL_SERVER_KEY = process.env.EXTERNAL_SERVER_KEY || 'bledsport';
+let externalWs = null;
+let externalReconnectTimer = null;
+
+function connectExternal() {
+  if (!EXTERNAL_SERVER_URL) return;
+  const url = `${EXTERNAL_SERVER_URL}/ws/game?key=${EXTERNAL_SERVER_KEY}`;
+  console.log(`Connecting to external server: ${EXTERNAL_SERVER_URL}`);
+  try {
+    const ws = new WebSocket(url);
+    ws.onopen = () => {
+      externalWs = ws;
+      console.log('External server connected');
+    };
+    ws.onmessage = (e) => {
+      // Spectator inputs relayed from the external server
+      try {
+        const input = JSON.parse(e.data);
+        if (input.type === 'god_bomb') {
+          if (gamePhase !== 'playing') return;
+          const pos = Math.round(input.pos);
+          if (pos < 0 || pos >= NUM_LEDS) return;
+          bombs.push({
+            pos,
+            owner: null,
+            placedAt: Date.now(),
+            width: BOMB_WIDTH,
+            exploding: false,
+            explodeFrame: 0,
+            godBomb: true,
+          });
+        }
+      } catch {}
+    };
+    ws.onclose = () => {
+      externalWs = null;
+      console.log('External server disconnected — reconnecting in 3s');
+      clearTimeout(externalReconnectTimer);
+      externalReconnectTimer = setTimeout(connectExternal, 3000);
+    };
+    ws.onerror = () => { ws.close(); };
+  } catch (err) {
+    console.log('External server connection error:', err.message);
+    clearTimeout(externalReconnectTimer);
+    externalReconnectTimer = setTimeout(connectExternal, 3000);
+  }
 }
 
 const server = Bun.serve({
@@ -1079,4 +1133,5 @@ if (gamepadMappings.length > 0) {
 
 setInterval(tick, TICK_MS);
 connectWled();
+connectExternal();
 console.log(`LED Arch Game server running on http://localhost:${server.port}`);
