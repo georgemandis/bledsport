@@ -982,8 +982,8 @@ function broadcast(msg) {
   for (const ws of clients.keys()) {
     if (ws.readyState === 1) ws.send(data);
   }
-  // Forward binary to external server only when state changes
-  if (externalWs && externalWs.readyState === 1) {
+  // Forward binary to external server only when spectators are watching and state changes
+  if (externalWs && externalWs.readyState === 1 && externalSpectatorCount > 0) {
     const buf = packStateForExternal(msg);
     if (!lastExternalBuf || !buf.equals(lastExternalBuf)) {
       lastExternalBuf = buf;
@@ -995,6 +995,7 @@ function broadcast(msg) {
 // --- External server relay ---
 const EXTERNAL_SERVER_URL = process.env.EXTERNAL_SERVER_URL || '';
 const EXTERNAL_SERVER_KEY = process.env.EXTERNAL_SERVER_KEY || 'bledsport';
+let externalSpectatorCount = 0;
 let externalWs = null;
 let externalReconnectTimer = null;
 
@@ -1009,9 +1010,14 @@ function connectExternal() {
       console.log('External server connected');
     };
     ws.onmessage = (e) => {
-      // Spectator inputs relayed from the external server
       try {
         const input = JSON.parse(e.data);
+        if (input.type === 'spectators') {
+          externalSpectatorCount = input.count || 0;
+          console.log(`External spectators: ${externalSpectatorCount}`);
+          if (externalSpectatorCount > 0) lastExternalBuf = null; // force next send
+          return;
+        }
         if (input.type === 'god_bomb') {
           if (gamePhase !== 'playing') return;
           const pos = Math.round(input.pos);
@@ -1030,6 +1036,7 @@ function connectExternal() {
     };
     ws.onclose = () => {
       externalWs = null;
+      externalSpectatorCount = 0;
       console.log('External server disconnected — reconnecting in 3s');
       clearTimeout(externalReconnectTimer);
       externalReconnectTimer = setTimeout(connectExternal, 3000);
