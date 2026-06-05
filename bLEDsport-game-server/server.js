@@ -77,6 +77,61 @@ function speak(text) {
   ], (err) => { if (err) {} }); // fire and forget
 }
 
+// --- Music (mpg123 in remote-control mode) ---
+const { spawn } = require('child_process');
+const path = require('path');
+let mpg123 = null;
+let musicPlaying = false;
+let currentTrack = null;
+
+function initMusic() {
+  try {
+    require('child_process').execFileSync('which', ['mpg123']);
+  } catch {
+    console.log('mpg123 not found — music disabled');
+    return;
+  }
+  mpg123 = spawn('mpg123', ['--remote'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  mpg123.on('error', (err) => {
+    console.log('mpg123 error:', err.message);
+    mpg123 = null;
+  });
+  mpg123.on('exit', () => {
+    console.log('mpg123 exited');
+    mpg123 = null;
+    musicPlaying = false;
+  });
+  // Listen for end-of-track to loop
+  mpg123.stdout.on('data', (data) => {
+    if (data.toString().includes('@P 0') && musicPlaying && currentTrack) {
+      musicCommand(`LOAD ${currentTrack}`);
+    }
+  });
+  mpg123.stderr.resume();
+  console.log('mpg123 remote-control ready');
+}
+
+function musicCommand(cmd) {
+  if (!mpg123 || !mpg123.stdin.writable) return;
+  mpg123.stdin.write(cmd + '\n');
+}
+
+function musicPlay(file) {
+  if (!mpg123) return;
+  currentTrack = path.resolve(__dirname, 'assets', file);
+  musicCommand(`LOAD ${currentTrack}`);
+  musicPlaying = true;
+}
+
+function musicStop() {
+  if (!mpg123) return;
+  musicCommand('STOP');
+  musicPlaying = false;
+  currentTrack = null;
+}
+
 // --- WLED connection (DDP over UDP) ---
 const WLED_HOST = '10.100.3.132';
 const WLED_DDP_PORT = 4048;
@@ -165,6 +220,7 @@ function resetGame() {
   if (globalThis.padPlayers) globalThis.padPlayers.clear();
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
+  musicStop();
   console.log('Game reset — waiting for players');
 }
 
@@ -195,6 +251,7 @@ function startGame() {
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
   // speak('fight');
+  musicPlay('fight.mp3');
   console.log(`Game started with ${players.size} players`);
 }
 
@@ -1268,4 +1325,5 @@ if (gamepadMappings.length > 0) {
 setInterval(tick, TICK_MS);
 connectWled();
 connectExternal();
+initMusic();
 console.log(`LED Arch Game server running on http://localhost:${server.port}`);
