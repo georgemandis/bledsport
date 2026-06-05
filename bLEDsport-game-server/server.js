@@ -854,29 +854,140 @@ function hslToRgb(h, s, l) {
 // --- WebSocket server ---
 const clients = new Map();
 
-let lastExternalSnapshot = '';
+let lastExternalBuf = null;
+
+// Binary protocol for external server:
+//
+// Header (2 bytes):
+//   [0] gamePhase: 0=waiting, 1=playing, 2=victory
+//   [1] hi nibble = playerCount (0-4), lo nibble = waveCount (0-15)
+//
+// Per player (8 bytes):
+//   [0] pos         [1] colorR  [2] colorG  [3] colorB
+//   [4] flags (bit0=alive, bit1=shieldActive, bit2=hasDash)
+//   [5] score       [6] id      [7] blastCharges | blastMax<<4
+//
+// Per wave (4 bytes):
+//   [0] center  [1] radius  [2] owner  [3] maxRadius
+//
+// Then:
+//   [1 byte] bombCount
+//   Per bomb (4 bytes): [0] pos  [1] width  [2] explodeFrame  [3] flags (bit0=exploding, bit1=godBomb, bits4-7=owner)
+//
+//   [1 byte] powerupCount
+//   Per powerup (1 byte): pos
+//
+//   [1 byte] fireCount
+//   Per fire (2 bytes): [0] pos  [1] age (0-255 scaled from 0.0-1.0)
+//
+// If gamePhase == 2 (victory), appended:
+//   [3 bytes] victoryColor RGB
+//   [1 byte] nameLen
+//   [nameLen bytes] victoryPlayerName (UTF-8)
+
+function packStateForExternal(msg) {
+  const players = msg.players || [];
+  const waves = msg.waves || [];
+  const bombs = msg.bombs || [];
+  const powerups = msg.powerups || [];
+  const fires = msg.fires || [];
+
+  const playerCount = Math.min(players.length, 4);
+  const waveCount = Math.min(waves.length, 15);
+  const bombCount = Math.min(bombs.length, 255);
+  const powerupCount = Math.min(powerups.length, 255);
+  const fireCount = Math.min(fires.length, 255);
+
+  const phase = msg.gamePhase === 'waiting' ? 0 : msg.gamePhase === 'playing' ? 1 : 2;
+  const victoryName = phase === 2 ? (msg.victoryPlayerName || '') : '';
+  const nameBytes = Buffer.from(victoryName, 'utf8');
+
+  const size = 2
+    + playerCount * 8
+    + waveCount * 4
+    + 1 + bombCount * 4
+    + 1 + powerupCount
+    + 1 + fireCount * 2
+    + (phase === 2 ? 3 + 1 + nameBytes.length : 0);
+
+  const buf = Buffer.alloc(size);
+  let off = 0;
+
+  // Header
+  buf[off++] = phase;
+  buf[off++] = (playerCount << 4) | waveCount;
+
+  // Players
+  for (let i = 0; i < playerCount; i++) {
+    const p = players[i];
+    buf[off++] = p.pos & 0xFF;
+    buf[off++] = p.color[0];
+    buf[off++] = p.color[1];
+    buf[off++] = p.color[2];
+    buf[off++] = (p.alive ? 1 : 0) | (p.shieldActive ? 2 : 0) | (p.hasDash ? 4 : 0);
+    buf[off++] = p.score & 0xFF;
+    buf[off++] = p.id & 0xFF;
+    buf[off++] = (p.blastCharges & 0x0F) | ((p.blastMax & 0x0F) << 4);
+  }
+
+  // Waves
+  for (let i = 0; i < waveCount; i++) {
+    const w = waves[i];
+    buf[off++] = w.center & 0xFF;
+    buf[off++] = Math.round(w.radius) & 0xFF;
+    buf[off++] = (w.owner || 0) & 0xFF;
+    buf[off++] = w.maxRadius & 0xFF;
+  }
+
+  // Bombs
+  buf[off++] = bombCount;
+  for (let i = 0; i < bombCount; i++) {
+    const b = bombs[i];
+    buf[off++] = b.pos & 0xFF;
+    buf[off++] = b.width & 0xFF;
+    buf[off++] = b.explodeFrame & 0xFF;
+    buf[off++] = (b.exploding ? 1 : 0) | (b.godBomb ? 2 : 0) | (((b.owner || 0) & 0x0F) << 4);
+  }
+
+  // Powerups
+  buf[off++] = powerupCount;
+  for (let i = 0; i < powerupCount; i++) {
+    buf[off++] = powerups[i].pos & 0xFF;
+  }
+
+  // Fires
+  buf[off++] = fireCount;
+  for (let i = 0; i < fireCount; i++) {
+    const f = fires[i];
+    buf[off++] = f.pos & 0xFF;
+    buf[off++] = Math.round(Math.min(1, Math.max(0, f.age)) * 255);
+  }
+
+  // Victory
+  if (phase === 2) {
+    const vc = msg.victoryColor || [255, 255, 255];
+    buf[off++] = vc[0];
+    buf[off++] = vc[1];
+    buf[off++] = vc[2];
+    buf[off++] = nameBytes.length;
+    nameBytes.copy(buf, off);
+    off += nameBytes.length;
+  }
+
+  return buf;
+}
 
 function broadcast(msg) {
   const data = JSON.stringify(msg);
   for (const ws of clients.keys()) {
     if (ws.readyState === 1) ws.send(data);
   }
-  // Forward to external server only when state meaningfully changes
+  // Forward binary to external server only when state changes
   if (externalWs && externalWs.readyState === 1) {
-    // Snapshot the fields that matter (ignore animTime which changes every tick)
-    const snapshot = JSON.stringify({
-      gamePhase: msg.gamePhase,
-      players: msg.players,
-      waves: msg.waves,
-      powerups: msg.powerups,
-      bombs: msg.bombs,
-      fires: msg.fires,
-      victoryColor: msg.victoryColor,
-      victoryPlayerName: msg.victoryPlayerName,
-    });
-    if (snapshot !== lastExternalSnapshot) {
-      lastExternalSnapshot = snapshot;
-      externalWs.send(data);
+    const buf = packStateForExternal(msg);
+    if (!lastExternalBuf || !buf.equals(lastExternalBuf)) {
+      lastExternalBuf = buf;
+      externalWs.send(buf);
     }
   }
 }
