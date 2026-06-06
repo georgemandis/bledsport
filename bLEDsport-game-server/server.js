@@ -98,7 +98,7 @@ function musicPlay(file) {
   musicStop();
   const filePath = path.resolve(__dirname, 'assets', file);
   console.log('Music path:', filePath);
-  mpg123 = nodeSpawn('mpg123', ['-o', 'alsa', '--loop', '-1', '--quiet', filePath], {
+  mpg123 = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   mpg123.stderr.on('data', (d) => console.log('mpg123 stderr:', d.toString().trim()));
