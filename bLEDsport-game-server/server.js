@@ -6,6 +6,8 @@ const WAVE_SPEED = 2;
 const WAVE_MAX = 12;
 const PLAYER_WIDTH = 1;
 const DASH_REGEN_MS = 3000;
+const DASH_ANIM_STRETCH_MS = 80;  // front extends to destination
+const DASH_ANIM_CONTRACT_MS = 70; // back catches up
 const TICK_MS = 16; // ~60fps
 const RESPAWN_MS = 2000;
 
@@ -215,6 +217,7 @@ function startGame() {
     p.pos = spawnPos();
     p.lastDelta = 0;
     p.hasDash = true;
+    p.dashAnim = null;
     p.shieldActive = false;
     p.bombMaxCharges = 1;
     p.bombCharges = 1;
@@ -278,6 +281,7 @@ function createPlayer(id) {
     lastMoveTime: 0,
     hasDash: true,
     lastDashTime: 0,
+    dashAnim: null, // { startPos, endPos, dir, startTime }
     // Abilities
     bombCharges: 1,
     bombMaxCharges: 1,
@@ -357,6 +361,7 @@ function hitPlayer(player, attackerId, now) {
   player.alive = false;
   player.respawnAt = now + RESPAWN_MS;
   player.shieldActive = false;
+  player.dashAnim = null;
   const attacker = players.get(attackerId);
   if (attacker) attacker.score++;
   const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
@@ -416,6 +421,12 @@ function handleInput(playerId, input) {
     }
 
     if (wantsDash) {
+      player.dashAnim = {
+        startPos: player.pos,
+        endPos: newPos,
+        dir: delta > 0 ? 1 : -1,
+        startTime: now,
+      };
       player.pos = newPos;
       player.hasDash = false;
       player.lastDashTime = now;
@@ -617,6 +628,7 @@ function tick() {
       p.pos = spawnPos();
       p.lastDelta = 0;
       p.hasDash = true;
+      p.dashAnim = null;
       p.shieldActive = false;
       p.bombMaxCharges = 1;
       p.bombCharges = 1;
@@ -824,6 +836,41 @@ function tick() {
         }
       }
     }
+    // Dash inchworm animation
+    if (p.dashAnim) {
+      const elapsed = now - p.dashAnim.startTime;
+      const totalMs = DASH_ANIM_STRETCH_MS + DASH_ANIM_CONTRACT_MS;
+      if (elapsed >= totalMs) {
+        p.dashAnim = null;
+      } else {
+        const { startPos, endPos, dir } = p.dashAnim;
+        const dist = Math.abs(endPos - startPos);
+        let frontPos, backPos;
+        if (elapsed < DASH_ANIM_STRETCH_MS) {
+          // Phase 1: front stretches toward destination, back stays
+          const t = elapsed / DASH_ANIM_STRETCH_MS;
+          const frontOffset = Math.round(t * dist);
+          backPos = startPos;
+          frontPos = startPos + dir * frontOffset;
+        } else {
+          // Phase 2: back catches up to front at destination
+          const t = (elapsed - DASH_ANIM_STRETCH_MS) / DASH_ANIM_CONTRACT_MS;
+          const backOffset = Math.round(t * dist);
+          frontPos = endPos;
+          backPos = startPos + dir * backOffset;
+        }
+        // Draw all pixels from back to front
+        const lo = Math.min(backPos, frontPos);
+        const hi = Math.max(backPos, frontPos);
+        for (let led = lo; led <= hi; led++) {
+          const wled = wrapPos(led);
+          if (wled >= 0 && wled < NUM_LEDS) {
+            pixels[wled] = [...p.color];
+          }
+        }
+        continue; // skip normal player rendering
+      }
+    }
     // Player pixel (pulse when no powerup, solid when armed)
     const recharging = !p.hasDash;
     const pulse = recharging ? 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(animTime * 8)) : 1;
@@ -860,6 +907,12 @@ function serializePlayers() {
       bombReady,
       blastCharges: blastReady, blastMax: p.blastMaxCharges,
       shieldReady,
+      dashAnim: p.dashAnim ? {
+        startPos: p.dashAnim.startPos,
+        endPos: p.dashAnim.endPos,
+        dir: p.dashAnim.dir,
+        elapsed: now - p.dashAnim.startTime,
+      } : null,
     };
   });
 }
