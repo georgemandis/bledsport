@@ -455,7 +455,7 @@ function startGame() {
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
   speak('fight');
-  // musicPlay('fight.mp3');
+  musicPlay('fight.mp3');
   console.log(`Game started with ${players.size} players`);
 }
 
