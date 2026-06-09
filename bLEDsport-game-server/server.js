@@ -1241,8 +1241,6 @@ if (gamepadMappings.length > 0) {
     }
   }
 
-  const DPAD_REPEAT_MS = 25;
-
   // Track which pad index is bound to which player id (global for resetGame access)
   globalThis.padPlayers = new Map();
   const padPlayers = globalThis.padPlayers;
@@ -1262,7 +1260,7 @@ if (gamepadMappings.length > 0) {
     intervals[dir] = setInterval(() => {
       const pid = padPlayers.get(pad.index);
       if (pid) handleInput(pid, { type: 'move', dir, shift: false });
-    }, DPAD_REPEAT_MS);
+    }, TICK_MS);
   }
 
   function stopDpadRepeat(pad, dir) {
