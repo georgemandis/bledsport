@@ -289,35 +289,6 @@ const renderer = {
           }
         }
       }
-      // Dash inchworm animation
-      if (p.dashAnim) {
-        const STRETCH_MS = 80, CONTRACT_MS = 70;
-        const elapsed = p.dashAnim.elapsed;
-        const totalMs = STRETCH_MS + CONTRACT_MS;
-        if (elapsed < totalMs) {
-          const { startPos, endPos, dir } = p.dashAnim;
-          const dist = Math.abs(endPos - startPos);
-          let frontPos, backPos;
-          if (elapsed < STRETCH_MS) {
-            const tt = elapsed / STRETCH_MS;
-            frontPos = startPos + dir * Math.round(tt * dist);
-            backPos = startPos;
-          } else {
-            const tt = (elapsed - STRETCH_MS) / CONTRACT_MS;
-            frontPos = endPos;
-            backPos = startPos + dir * Math.round(tt * dist);
-          }
-          const lo = Math.min(backPos, frontPos);
-          const hi = Math.max(backPos, frontPos);
-          for (let led = lo; led <= hi; led++) {
-            let wled = led;
-            if (wled < 0) wled = NUM_LEDS - 1;
-            else if (wled >= NUM_LEDS) wled = 0;
-            if (wled >= 0 && wled < NUM_LEDS) pixels[wled] = [...p.color];
-          }
-          continue;
-        }
-      }
       const recharging = !p.hasDash;
       const pulse = recharging ? 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 8)) : 1;
       pixels[p.pos] = [
