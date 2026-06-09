@@ -1,41 +1,78 @@
 // LED Arch Game — multiplayer server
 // Run: bun server.js [--debug] [--gamepad ./innext-controller.json]
 
+const CONFIG_SCHEMA = {
+  // Game Rules (pre-match only)
+  winsNeeded:       { default: 3,     min: 1, max: 10, step: 1, category: 'gameRules', live: false },
+  playerWidth:      { default: 1,     min: 1, max: 5,  step: 1, category: 'gameRules', live: false },
+  respawnMs:        { default: 2000,  min: 500, max: 5000, step: 250, category: 'gameRules', live: false },
+  randomSpawns:     { default: false, category: 'gameRules', live: false },
+  spectatorInteraction: { default: true, category: 'gameRules', live: false },
+  victoryDurationMs:{ default: 5000,  min: 2000, max: 10000, step: 500, category: 'gameRules', live: false },
+  idleResetMs:      { default: 60000, min: 10000, max: 300000, step: 5000, category: 'gameRules', live: false },
+
+  // Movement
+  dashDistance:      { default: 5,     min: 1, max: 20, step: 1, category: 'movement', live: true },
+  dashRegenMs:      { default: 3000,  min: 500, max: 10000, step: 250, category: 'movement', live: true },
+  momentumTicks:    { default: 0,     min: 0, max: 12, step: 1, category: 'movement', live: true },
+  momentumIntervalMs:{ default: 60,   min: 16, max: 200, step: 4, category: 'movement', live: true },
+
+  // Bombs
+  bombWidth:        { default: 5,     min: 1, max: 15, step: 1, category: 'bombs', live: true },
+  bombFuseMs:       { default: 3000,  min: 500, max: 10000, step: 250, category: 'bombs', live: true },
+  bombExplodeRadius:{ default: 8,     min: 2, max: 30, step: 1, category: 'bombs', live: true },
+  bombExplodeFrames:{ default: 10,    min: 3, max: 20, step: 1, category: 'bombs', live: true },
+  bombCooldownMs:   { default: 1000,  min: 0, max: 5000, step: 250, category: 'bombs', live: true },
+  bombKickSpeed:    { default: 0.5,   min: 0.1, max: 2.0, step: 0.1, category: 'bombs', live: true },
+  bombLeavesFlames: { default: false, category: 'bombs', live: true },
+  flameDurationMs:  { default: 3000,  min: 500, max: 10000, step: 250, category: 'bombs', live: true },
+  flameSpread:      { default: 1,     min: 0, max: 10, step: 1, category: 'bombs', live: true },
+
+  // Shield
+  shieldDurationMs: { default: 1000,  min: 250, max: 5000, step: 250, category: 'shield', live: true },
+  shieldCooldownMs: { default: 5000,  min: 500, max: 15000, step: 250, category: 'shield', live: true },
+
+  // Pew-Pew
+  pewPewCooldownMs: { default: 5000,  min: 500, max: 15000, step: 250, category: 'pewPew', live: true },
+  waveSpeed:        { default: 2,     min: 1, max: 5, step: 1, category: 'pewPew', live: true },
+  waveMaxRadius:    { default: 12,    min: 4, max: 40, step: 1, category: 'pewPew', live: true },
+
+  // Portals
+  portalsEnabled:   { default: true,  category: 'portals', live: true },
+  portalsMoving:    { default: false, category: 'portals', live: true },
+  portalMoveIntervalMs: { default: 15000, min: 5000, max: 60000, step: 1000, category: 'portals', live: true },
+  portalMomentum:   { default: 4,     min: 0, max: 12, step: 1, category: 'portals', live: true },
+
+  // Walls
+  cornerWallsEnabled:   { default: false, category: 'walls', live: true },
+  cornerWallMaxSize:    { default: 6,   min: 2, max: 15, step: 1, category: 'walls', live: true },
+  cornerWallGrowMs:     { default: 5000, min: 1000, max: 30000, step: 1000, category: 'walls', live: true },
+  randomWallsEnabled:   { default: false, category: 'walls', live: true },
+  randomWallSpawnMs:    { default: 10000, min: 3000, max: 30000, step: 1000, category: 'walls', live: true },
+  randomWallSize:       { default: 5,   min: 1, max: 15, step: 1, category: 'walls', live: true },
+  randomWallMaxCount:   { default: 3,   min: 1, max: 8, step: 1, category: 'walls', live: true },
+  sweeperEnabled:       { default: false, category: 'walls', live: true },
+  sweeperSize:          { default: 3,   min: 1, max: 10, step: 1, category: 'walls', live: true },
+  sweeperSpeed:         { default: 0.25, min: 0.1, max: 2.0, step: 0.05, category: 'walls', live: true },
+  sweeperLethal:        { default: true, category: 'walls', live: true },
+
+  // Powerups
+  powerupSpawnMinMs:    { default: 4000, min: 1000, max: 20000, step: 500, category: 'powerups', live: true },
+  powerupSpawnMaxMs:    { default: 8000, min: 2000, max: 30000, step: 500, category: 'powerups', live: true },
+  powerupMaxCount:      { default: 1,   min: 0, max: 5, step: 1, category: 'powerups', live: true },
+};
+
+// Build gameConfig from defaults
+const gameConfig = {};
+for (const [key, schema] of Object.entries(CONFIG_SCHEMA)) {
+  gameConfig[key] = schema.default;
+}
+
+// Keep non-configurable constants
 const NUM_LEDS = 192;
-const WAVE_SPEED = 2;
-const WAVE_MAX = 12;
-const PLAYER_WIDTH = 1;
-const DASH_REGEN_MS = 3000;
 const TICK_MS = 16; // ~60fps
-const RESPAWN_MS = 2000;
-
-// Ability cooldowns
-const BOMB_COOLDOWN_MS = 1000;
-const BLAST_COOLDOWN_MS = 5000;
-const SHIELD_DURATION_MS = 1000;
-const SHIELD_COOLDOWN_MS = 5000;
-
-// Power-up spawning
-const POWERUP_SPAWN_MIN = 4000;  // ms
-const POWERUP_SPAWN_MAX = 8000;
-const POWERUP_MAX = 1;           // max on field at once
+const PORTAL_GLOW_SIZE = 3;
 const POWERUP_TYPES = ['blast'];
-
-// Bomb config
-const BOMB_WIDTH = 5;
-const BOMB_FUSE_MS = 3000;       // shrinks over this time
-const BOMB_EXPLODE_RADIUS = 8;
-const BOMB_EXPLODE_FRAMES = 10;
-const BOMB_KICK_SPEED = 0.5;     // LEDs per tick (half player speed)
-
-// Hand of God config
-const GOD_FIRE_DURATION_MS = 3000; // fire lasts 3 seconds
-const GOD_FIRE_SPREAD = 1;         // 1 pixel each side = 3 total pixels
-
-// Portal config
-const PORTAL_GLOW_SIZE = 3;      // LEDs of glow at each end
-const PORTAL_MOMENTUM = 4;       // forced moves after teleporting
-const PORTAL_MOMENTUM_MS = 60;   // ms between forced moves
 
 const PLAYER_COLORS = [
   [0, 200, 255],   // cyan
@@ -160,9 +197,6 @@ function sendToWled(pixels) {
 }
 
 // --- Game state ---
-const WINS_NEEDED = 3;
-const VICTORY_DURATION_MS = 5000;
-const IDLE_RESET_MS = 60000;
 
 let gamePhase = 'waiting'; // 'waiting' | 'playing' | 'victory'
 let victoryStart = 0;
@@ -179,7 +213,7 @@ let explosions = []; // {center, radius, frame, maxFrames}
 let fires = [];      // {pos, placedAt} — from Hand of God bombs
 let animTime = 0;
 let lastPowerupSpawn = Date.now();
-let nextPowerupDelay = randomBetween(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
+let nextPowerupDelay = randomBetween(gameConfig.powerupSpawnMinMs, gameConfig.powerupSpawnMaxMs);
 
 function resetGame() {
   gamePhase = 'waiting';
@@ -269,7 +303,7 @@ function createPlayer(id) {
     pos: spawnPos(),
     color: PLAYER_COLORS[colorIndex],
     colorIndex,
-    width: PLAYER_WIDTH,
+    width: gameConfig.playerWidth,
     alive: true,
     respawnAt: 0,
     score: 0,
@@ -355,7 +389,7 @@ function hitPlayer(player, attackerId, now) {
   if (gamePhase !== 'playing') return; // game already ended
   if (player.shieldActive) return; // shield absorbs the hit
   player.alive = false;
-  player.respawnAt = now + RESPAWN_MS;
+  player.respawnAt = now + gameConfig.respawnMs;
   player.shieldActive = false;
   const attacker = players.get(attackerId);
   if (attacker) attacker.score++;
@@ -368,9 +402,9 @@ function hitPlayer(player, attackerId, now) {
       .map(p => `${p.name}, ${p.score}`)
       .join('. ');
     setTimeout(() => {
-      // speak(`${scores}. out of ${WINS_NEEDED}`);
+      // speak(`${scores}. out of ${gameConfig.winsNeeded}`);
       // Check for match point
-      const matchPointPlayers = [...players.values()].filter(p => p.score === WINS_NEEDED - 1);
+      const matchPointPlayers = [...players.values()].filter(p => p.score === gameConfig.winsNeeded - 1);
       if (matchPointPlayers.length > 0 && gamePhase === 'playing') {
         setTimeout(() => {
           // speak('match point');
@@ -380,7 +414,7 @@ function hitPlayer(player, attackerId, now) {
   }
 
   // Check for winner
-  if (attacker && attacker.score >= WINS_NEEDED) {
+  if (attacker && attacker.score >= gameConfig.winsNeeded) {
     gamePhase = 'victory';
     victoryStart = now;
     victoryColor = attacker.color;
@@ -402,7 +436,7 @@ function handleInput(playerId, input) {
     if (!player.alive) return;
     if (player.momentum > 0) return; // locked during portal momentum
     const wantsDash = input.shift && player.hasDash;
-    const step = wantsDash ? 5 : 1;
+    const step = wantsDash ? gameConfig.dashDistance : 1;
     const delta = getDelta(input.dir, player.pos) * step;
     if (delta === 0) return;
 
@@ -431,7 +465,7 @@ function handleInput(playerId, input) {
 
     // Apply portal momentum
     if (throughPortal) {
-      player.momentum = PORTAL_MOMENTUM;
+      player.momentum = gameConfig.portalMomentum;
       player.momentumDir = delta > 0 ? 1 : -1;
       player.lastMomentumTime = now;
     }
@@ -460,13 +494,13 @@ function handleInput(playerId, input) {
   if (input.type === 'bomb') {
     if (!player.alive) return;
     // Cooldown check — unlimited bombs, one at a time per cooldown
-    if (player.bombLastUsed.length > 0 && now - player.bombLastUsed[player.bombLastUsed.length - 1] < BOMB_COOLDOWN_MS) return;
+    if (player.bombLastUsed.length > 0 && now - player.bombLastUsed[player.bombLastUsed.length - 1] < gameConfig.bombCooldownMs) return;
     player.bombLastUsed = [now]; // reset to just this placement
     bombs.push({
       pos: player.pos,
       owner: playerId,
       placedAt: now,
-      width: BOMB_WIDTH,
+      width: gameConfig.bombWidth,
       exploding: false,
       explodeFrame: 0,
     });
@@ -474,10 +508,10 @@ function handleInput(playerId, input) {
 
   if (input.type === 'blast') {
     if (!player.alive) return;
-    player.blastLastUsed = player.blastLastUsed.filter(t => now - t < BLAST_COOLDOWN_MS);
+    player.blastLastUsed = player.blastLastUsed.filter(t => now - t < gameConfig.pewPewCooldownMs);
     const available = player.blastMaxCharges - player.blastLastUsed.length;
     if (available <= 0) return;
-    waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: WAVE_MAX });
+    waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: gameConfig.waveMaxRadius });
     player.blastLastUsed.push(now);
     // speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
   }
@@ -485,9 +519,9 @@ function handleInput(playerId, input) {
   if (input.type === 'shield') {
     if (!player.alive) return;
     if (player.shieldActive) return;
-    if (now - player.shieldLastUsed < SHIELD_COOLDOWN_MS) return;
+    if (now - player.shieldLastUsed < gameConfig.shieldCooldownMs) return;
     player.shieldActive = true;
-    player.shieldActiveUntil = now + SHIELD_DURATION_MS;
+    player.shieldActiveUntil = now + gameConfig.shieldDurationMs;
   }
 
   if (input.type === 'kick') {
@@ -524,7 +558,7 @@ function tick() {
   // --- Victory phase ---
   if (gamePhase === 'victory') {
     const elapsed = now - victoryStart;
-    if (elapsed >= VICTORY_DURATION_MS) {
+    if (elapsed >= gameConfig.victoryDurationMs) {
       resetGame();
       return;
     }
@@ -582,7 +616,7 @@ function tick() {
 
   // --- Playing phase ---
   // Idle timeout
-  if (now - lastInputTime >= IDLE_RESET_MS) {
+  if (now - lastInputTime >= gameConfig.idleResetMs) {
     console.log('No input for 60s — resetting');
     // speak('game over, no activity');
     resetGame();
@@ -590,19 +624,19 @@ function tick() {
   }
 
   // Spawn power-ups
-  if (now - lastPowerupSpawn >= nextPowerupDelay && powerups.length < POWERUP_MAX) {
+  if (now - lastPowerupSpawn >= nextPowerupDelay && powerups.length < gameConfig.powerupMaxCount) {
     const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
     powerups.push({ pos: randomPowerupPos(), type, spawnTime: now });
     lastPowerupSpawn = now;
-    nextPowerupDelay = randomBetween(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
+    nextPowerupDelay = randomBetween(gameConfig.powerupSpawnMinMs, gameConfig.powerupSpawnMaxMs);
   }
 
   // Player updates
   for (const p of players.values()) {
     if (p.lastDelta !== 0 && now - p.lastMoveTime > 200) p.lastDelta = 0;
-    if (!p.hasDash && p.alive && now - p.lastDashTime >= DASH_REGEN_MS) p.hasDash = true;
+    if (!p.hasDash && p.alive && now - p.lastDashTime >= gameConfig.dashRegenMs) p.hasDash = true;
     // Portal momentum
-    if (p.momentum > 0 && p.alive && now - p.lastMomentumTime >= PORTAL_MOMENTUM_MS) {
+    if (p.momentum > 0 && p.alive && now - p.lastMomentumTime >= gameConfig.momentumIntervalMs) {
       p.pos = wrapPos(p.pos + p.momentumDir);
       p.momentum--;
       p.lastMomentumTime = now;
@@ -630,7 +664,7 @@ function tick() {
 
   // Advance waves
   for (const w of waves) {
-    w.radius += WAVE_SPEED;
+    w.radius += gameConfig.waveSpeed;
     const r = Math.round(w.radius);
     for (const p of players.values()) {
       if (!p.alive || p.id === w.owner) continue;
@@ -646,7 +680,7 @@ function tick() {
     if (b.exploding) {
       b.explodeFrame++;
       // Check explosion hits
-      const r = Math.round(b.explodeFrame * (BOMB_EXPLODE_RADIUS / BOMB_EXPLODE_FRAMES));
+      const r = Math.round(b.explodeFrame * (gameConfig.bombExplodeRadius / gameConfig.bombExplodeFrames));
       for (const p of players.values()) {
         if (!p.alive) continue;
         if (Math.abs(p.pos - b.pos) <= r) {
@@ -655,16 +689,16 @@ function tick() {
       }
     } else {
       const elapsed = now - b.placedAt;
-      const progress = Math.min(1, elapsed / BOMB_FUSE_MS);
-      b.width = Math.max(1, Math.round(BOMB_WIDTH * (1 - progress)));
-      if (elapsed >= BOMB_FUSE_MS) {
+      const progress = Math.min(1, elapsed / gameConfig.bombFuseMs);
+      b.width = Math.max(1, Math.round(gameConfig.bombWidth * (1 - progress)));
+      if (elapsed >= gameConfig.bombFuseMs) {
         b.exploding = true;
         b.explodeFrame = 0;
         // speak(EXPLOSION_PHRASES[Math.floor(Math.random() * EXPLOSION_PHRASES.length)]);
       }
       // Kick sliding
       if (b.kickDir) {
-        b.kickProgress = (b.kickProgress || 0) + BOMB_KICK_SPEED;
+        b.kickProgress = (b.kickProgress || 0) + gameConfig.bombKickSpeed;
         while (b.kickProgress >= 1) {
           b.kickProgress -= 1;
           const newPos = wrapPos(b.pos + b.kickDir);
@@ -687,8 +721,8 @@ function tick() {
   }
   // Spawn fire from god bombs when they finish exploding
   for (const b of bombs) {
-    if (b.exploding && b.explodeFrame > BOMB_EXPLODE_FRAMES && b.godBomb) {
-      for (let d = -GOD_FIRE_SPREAD; d <= GOD_FIRE_SPREAD; d++) {
+    if (b.exploding && b.explodeFrame > gameConfig.bombExplodeFrames && b.godBomb) {
+      for (let d = -gameConfig.flameSpread; d <= gameConfig.flameSpread; d++) {
         const fPos = b.pos + d;
         if (fPos >= 0 && fPos < NUM_LEDS) {
           fires.push({ pos: fPos, placedAt: now });
@@ -696,10 +730,10 @@ function tick() {
       }
     }
   }
-  bombs = bombs.filter(b => !(b.exploding && b.explodeFrame > BOMB_EXPLODE_FRAMES));
+  bombs = bombs.filter(b => !(b.exploding && b.explodeFrame > gameConfig.bombExplodeFrames));
 
   // Expire fires and check fire collisions
-  fires = fires.filter(f => now - f.placedAt < GOD_FIRE_DURATION_MS);
+  fires = fires.filter(f => now - f.placedAt < gameConfig.flameDurationMs);
   for (const f of fires) {
     for (const p of players.values()) {
       if (!p.alive) continue;
@@ -751,8 +785,8 @@ function tick() {
   for (const b of bombs) {
     if (b.exploding) {
       // Explosion: expanding white-red flash
-      const r = Math.round(b.explodeFrame * (BOMB_EXPLODE_RADIUS / BOMB_EXPLODE_FRAMES));
-      const fade = 1 - b.explodeFrame / BOMB_EXPLODE_FRAMES;
+      const r = Math.round(b.explodeFrame * (gameConfig.bombExplodeRadius / gameConfig.bombExplodeFrames));
+      const fade = 1 - b.explodeFrame / gameConfig.bombExplodeFrames;
       for (let d = -r; d <= r; d++) {
         const led = b.pos + d;
         if (led >= 0 && led < NUM_LEDS) {
@@ -777,7 +811,7 @@ function tick() {
 
   // Fires (Hand of God)
   for (const f of fires) {
-    const age = (now - f.placedAt) / GOD_FIRE_DURATION_MS;
+    const age = (now - f.placedAt) / gameConfig.flameDurationMs;
     const fadeOut = 1 - age * 0.5; // fade to 50% brightness
     const flicker = 0.6 + 0.4 * Math.sin(animTime * 15 + f.pos * 3);
     const bri = fadeOut * flicker;
@@ -842,7 +876,7 @@ function tick() {
     waves: serializeWaves(),
     powerups: powerups.map(p => ({ pos: p.pos, type: p.type })),
     bombs: bombs.map(b => ({ pos: b.pos, owner: b.owner, width: b.width, exploding: b.exploding, explodeFrame: b.explodeFrame, godBomb: b.godBomb || false })),
-    fires: fires.map(f => ({ pos: f.pos, age: (Date.now() - f.placedAt) / GOD_FIRE_DURATION_MS })),
+    fires: fires.map(f => ({ pos: f.pos, age: (Date.now() - f.placedAt) / gameConfig.flameDurationMs })),
     animTime,
   });
 }
@@ -850,9 +884,9 @@ function tick() {
 function serializePlayers() {
   const now = Date.now();
   return [...players.values()].map(p => {
-    const bombReady = p.bombLastUsed.length === 0 || now - p.bombLastUsed[p.bombLastUsed.length - 1] >= BOMB_COOLDOWN_MS;
-    const blastReady = p.blastMaxCharges - p.blastLastUsed.filter(t => now - t < BLAST_COOLDOWN_MS).length;
-    const shieldReady = !p.shieldActive && (now - p.shieldLastUsed >= SHIELD_COOLDOWN_MS);
+    const bombReady = p.bombLastUsed.length === 0 || now - p.bombLastUsed[p.bombLastUsed.length - 1] >= gameConfig.bombCooldownMs;
+    const blastReady = p.blastMaxCharges - p.blastLastUsed.filter(t => now - t < gameConfig.pewPewCooldownMs).length;
+    const shieldReady = !p.shieldActive && (now - p.shieldLastUsed >= gameConfig.shieldCooldownMs);
     return {
       id: p.id, pos: p.pos, color: p.color, width: p.width,
       hasDash: p.hasDash, alive: p.alive, score: p.score, name: p.name,
@@ -1064,7 +1098,7 @@ function connectExternal() {
             pos,
             owner: null,
             placedAt: Date.now(),
-            width: BOMB_WIDTH,
+            width: gameConfig.bombWidth,
             exploding: false,
             explodeFrame: 0,
             godBomb: true,
@@ -1139,7 +1173,7 @@ const server = Bun.serve({
             pos,
             owner: null,
             placedAt: Date.now(),
-            width: BOMB_WIDTH,
+            width: gameConfig.bombWidth,
             exploding: false,
             explodeFrame: 0,
             godBomb: true,
