@@ -24,7 +24,7 @@ const CONFIG_SCHEMA = {
   bombFuseMs:       { default: 3000,  min: 500, max: 10000, step: 250, category: 'bombs', live: true },
   bombExplodeRadius:{ default: 8,     min: 2, max: 30, step: 1, category: 'bombs', live: true },
   bombExplodeFrames:{ default: 10,    min: 3, max: 20, step: 1, category: 'bombs', live: true },
-  bombCooldownMs:   { default: 1000,  min: 0, max: 5000, step: 250, category: 'bombs', live: true },
+  bombCooldownMs:   { default: 0,  min: 0, max: 5000, step: 250, category: 'bombs', live: true },
   bombKickSpeed:    { default: 0.5,   min: 0.1, max: 2.0, step: 0.1, category: 'bombs', live: true },
   bombLeavesFlames: { default: false, category: 'bombs', live: true },
   flameDurationMs:  { default: 3000,  min: 500, max: 10000, step: 250, category: 'bombs', live: true },
