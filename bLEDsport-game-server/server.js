@@ -657,11 +657,8 @@ function hitPlayer(player, attackerId, now) {
   if (gamePhase !== 'playing') return; // game already ended
   if (player.shieldActive) return; // shield absorbs the hit
 
-  // DEBUG: minimal hitPlayer to isolate WLED crash
-  player.alive = false;
-  player.respawnAt = now + gameConfig.respawnMs;
-  player.shieldActive = false;
-  console.log(`  HIT: ${player.name} killed by bomb (minimal hitPlayer)`);
+  // DEBUG: do absolutely nothing — just log — to test if state change causes WLED crash
+  console.log(`  HIT: ${player.name} (NO-OP hitPlayer — player stays alive)`);
 
   // --- TEMPORARILY DISABLED for WLED crash debugging ---
   // const attacker = players.get(attackerId);
