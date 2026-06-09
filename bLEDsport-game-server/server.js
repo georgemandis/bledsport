@@ -1164,13 +1164,17 @@ function tick() {
       const phaseBefore = gamePhase;
       for (const p of players.values()) {
         if (!p.alive) continue;
-        if (Math.abs(p.pos - b.pos) <= r && !hasWallBetween(b.pos, p.pos)) {
-          console.log(`  EXPLOSION HIT: ${p.name} at pos=${p.pos} by bomb@${b.pos} (frame=${b.explodeFrame} r=${r})`);
+        const dist = Math.abs(p.pos - b.pos);
+        if (dist <= r && !hasWallBetween(b.pos, p.pos)) {
+          console.log(`  EXPLOSION HIT: ${p.name} at pos=${p.pos} by bomb@${b.pos} (frame=${b.explodeFrame} r=${r} dist=${dist})`);
           hitPlayer(p, b.owner, now);
           if (gamePhase !== phaseBefore) {
             console.log(`  >>> PHASE CHANGED: ${phaseBefore} -> ${gamePhase} (victory triggered mid-explosion)`);
           }
         }
+      }
+      if (b.explodeFrame <= 2) {
+        console.log(`  [bomb tick] bomb@${b.pos} frame=${b.explodeFrame} r=${r} phase=${gamePhase}`);
       }
       // Chip away at walls within explosion radius
       if (gameConfig.bombsDestroyWalls) {
@@ -1454,7 +1458,20 @@ function tick() {
     const maxR = Math.max(...pixels.filter(p => p).map(p => p[0]));
     const maxG = Math.max(...pixels.filter(p => p).map(p => p[1]));
     const maxB = Math.max(...pixels.filter(p => p).map(p => p[2]));
-    console.log(`  [render] explosions=${activeExplosions.length} litPixels=${litPixels} maxRGB=[${maxR},${maxG},${maxB}] phase=${gamePhase}`);
+    console.log(`  [render] explosions=${activeExplosions.length} litPixels=${litPixels} maxRGB=[${maxR},${maxG},${maxB}] phase=${gamePhase} seq=${ddpSeq}`);
+    // Dump the raw DDP pixel values around the bomb for first explosion frame
+    for (const eb of activeExplosions) {
+      if (eb.explodeFrame <= 1) {
+        const start = Math.max(0, eb.pos - 3);
+        const end = Math.min(NUM_LEDS - 1, eb.pos + 3);
+        const slice = [];
+        for (let i = start; i <= end; i++) {
+          const p = pixels[i];
+          slice.push(`${i}:${p ? `[${p}]` : 'null'}`);
+        }
+        console.log(`    pixels near bomb@${eb.pos}: ${slice.join(' ')}`);
+      }
+    }
   }
 
   sendToWled(pixels);
