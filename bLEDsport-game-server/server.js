@@ -1379,12 +1379,24 @@ function packStateForExternal(msg) {
   const victoryName = phase === 2 ? (msg.victoryPlayerName || '') : '';
   const nameBytes = Buffer.from(victoryName, 'utf8');
 
+  const cornerWalls = msg.cornerWalls || [];
+  const randomWalls = msg.randomWalls || [];
+  const sweeperMsg = msg.sweeper || null;
+  const portalA = { pos: msg.portalA !== undefined ? msg.portalA : 0 };
+  const portalB = { pos: msg.portalB !== undefined ? msg.portalB : 0 };
+
+  const activeCornerWallCount = cornerWalls.filter(w => w.size > 0).length;
+
   const size = 2
     + playerCount * 8
     + waveCount * 4
     + 1 + bombCount * 4
     + 1 + powerupCount
     + 1 + fireCount * 2
+    + 1 + activeCornerWallCount * 2  // corner walls
+    + 1 + randomWalls.length * 2     // random walls
+    + 1 + (sweeperMsg ? 2 : 0)       // sweeper
+    + 2                               // portal positions
     + (phase === 2 ? 3 + 1 + nameBytes.length : 0);
 
   const buf = Buffer.alloc(size);
@@ -1439,6 +1451,33 @@ function packStateForExternal(msg) {
     buf[off++] = f.pos & 0xFF;
     buf[off++] = Math.round(Math.min(1, Math.max(0, f.age)) * 255);
   }
+
+  // Corner walls
+  const activeCornerWalls = cornerWalls.filter(w => w.size > 0);
+  buf[off++] = activeCornerWalls.length;
+  for (const w of activeCornerWalls) {
+    buf[off++] = w.pos & 0xFF;
+    buf[off++] = w.size & 0xFF;
+  }
+
+  // Random walls
+  buf[off++] = randomWalls.length & 0xFF;
+  for (const w of randomWalls) {
+    buf[off++] = w.pos & 0xFF;
+    buf[off++] = w.size & 0xFF;
+  }
+
+  // Sweeper
+  const sweeperFlags = (sweeperMsg ? 1 : 0) | (sweeperMsg && sweeperMsg.lethal ? 2 : 0);
+  buf[off++] = sweeperFlags;
+  if (sweeperMsg) {
+    buf[off++] = Math.floor(sweeperMsg.pos) & 0xFF;
+    buf[off++] = sweeperMsg.size & 0xFF;
+  }
+
+  // Portal positions
+  buf[off++] = portalA.pos & 0xFF;
+  buf[off++] = portalB.pos & 0xFF;
 
   // Victory
   if (phase === 2) {
