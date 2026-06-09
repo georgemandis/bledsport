@@ -39,6 +39,7 @@ const CONFIG_SCHEMA = {
   pewPewCooldownMs: { default: 5000,  min: 500, max: 15000, step: 250, category: 'pewPew', live: true },
   waveSpeed:        { default: 2,     min: 1, max: 5, step: 1, category: 'pewPew', live: true },
   waveMaxRadius:    { default: 12,    min: 4, max: 40, step: 1, category: 'pewPew', live: true },
+  pewPewDestroysWalls: { default: false, category: 'pewPew', live: true },
 
   // Portals
   portalsEnabled:   { default: true,  category: 'portals', live: true },
@@ -1105,6 +1106,27 @@ function tick() {
       if (!p.alive || p.id === w.owner) continue;
       if (Math.abs(p.pos - w.center) >= r - 1 && Math.abs(p.pos - w.center) <= r + 1) {
         hitPlayer(p, w.owner, now);
+      }
+    }
+    // Chip walls at the wave front
+    if (gameConfig.pewPewDestroysWalls) {
+      for (const frontPos of [w.center + r, w.center - r]) {
+        if (frontPos < 0 || frontPos >= NUM_LEDS) continue;
+        for (const cw of cornerWalls) {
+          if (cw.currentSize === 0) continue;
+          const half = Math.floor(cw.currentSize / 2);
+          if (frontPos >= cw.pos - half && frontPos <= cw.pos + half) {
+            cw.currentSize = Math.max(0, cw.currentSize - 1);
+          }
+        }
+        for (let i = randomWalls.length - 1; i >= 0; i--) {
+          const rw = randomWalls[i];
+          const half = Math.floor(rw.size / 2);
+          if (frontPos >= rw.pos - half && frontPos <= rw.pos + half) {
+            rw.size--;
+            if (rw.size <= 0) randomWalls.splice(i, 1);
+          }
+        }
       }
     }
   }

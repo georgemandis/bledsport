@@ -24,6 +24,7 @@
   "pewPewCooldownMs": 5000,
   "waveSpeed": 2,
   "waveMaxRadius": 12,
+  "pewPewDestroysWalls": false,
   "portalsEnabled": true,
   "portalsMoving": false,
   "portalMoveIntervalMs": 15000,
