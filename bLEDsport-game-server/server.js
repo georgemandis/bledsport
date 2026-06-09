@@ -1,6 +1,9 @@
 // LED Arch Game — multiplayer server
 // Run: bun server.js [--debug] [--gamepad ./innext-controller.json]
 
+const fs = require('fs');
+const path = require('path');
+
 const CONFIG_SCHEMA = {
   // Game Rules (pre-match only)
   winsNeeded:       { default: 3,     min: 1, max: 10, step: 1, category: 'gameRules', live: false },
@@ -68,6 +71,135 @@ for (const [key, schema] of Object.entries(CONFIG_SCHEMA)) {
   gameConfig[key] = schema.default;
 }
 
+// --- Config preset system ---
+let activePreset = 'classic';
+let configBroadcastTimer = null;
+
+const PRESETS_DIR = path.resolve(__dirname, 'presets');
+
+function getPresetList() {
+  try {
+    return fs.readdirSync(PRESETS_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => f.replace(/\.json$/, ''));
+  } catch {
+    return [];
+  }
+}
+
+function loadPreset(name) {
+  const filePath = path.join(PRESETS_DIR, `${name}.json`);
+  if (!fs.existsSync(filePath)) return false;
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    for (const [key, schema] of Object.entries(CONFIG_SCHEMA)) {
+      if (key in data) {
+        gameConfig[key] = data[key];
+      }
+    }
+    activePreset = name;
+    return true;
+  } catch (err) {
+    console.log(`Failed to load preset "${name}":`, err.message);
+    return false;
+  }
+}
+
+function savePreset(name) {
+  // Sanitize name: alphanumeric, dashes, underscores only
+  const safeName = String(name).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32);
+  if (!safeName) return false;
+  const filePath = path.join(PRESETS_DIR, `${safeName}.json`);
+  try {
+    fs.mkdirSync(PRESETS_DIR, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(gameConfig, null, 2));
+    activePreset = safeName;
+    return true;
+  } catch (err) {
+    console.log(`Failed to save preset "${safeName}":`, err.message);
+    return false;
+  }
+}
+
+function deletePreset(name) {
+  if (name === 'classic') return false; // protect classic
+  const filePath = path.join(PRESETS_DIR, `${name}.json`);
+  try {
+    fs.unlinkSync(filePath);
+    if (activePreset === name) activePreset = null;
+    return true;
+  } catch (err) {
+    console.log(`Failed to delete preset "${name}":`, err.message);
+    return false;
+  }
+}
+
+function randomizeConfig() {
+  const isPlaying = gamePhase === 'playing';
+  for (const [key, schema] of Object.entries(CONFIG_SCHEMA)) {
+    // Skip non-live settings during active gameplay
+    if (isPlaying && !schema.live) continue;
+    if (typeof schema.default === 'boolean') {
+      gameConfig[key] = Math.random() < 0.5;
+    } else if (schema.min !== undefined && schema.max !== undefined) {
+      const range = schema.max - schema.min;
+      const steps = Math.round(range / (schema.step || 1));
+      const randomSteps = Math.floor(Math.random() * (steps + 1));
+      gameConfig[key] = schema.min + randomSteps * (schema.step || 1);
+      // Clamp to max in case of floating point
+      gameConfig[key] = Math.min(schema.max, gameConfig[key]);
+      // Round to step precision for floats
+      if (schema.step && schema.step < 1) {
+        const decimals = String(schema.step).split('.')[1]?.length || 0;
+        gameConfig[key] = Number(gameConfig[key].toFixed(decimals));
+      }
+    }
+  }
+  // Enforce powerupSpawnMinMs <= powerupSpawnMaxMs
+  if (gameConfig.powerupSpawnMinMs > gameConfig.powerupSpawnMaxMs) {
+    const temp = gameConfig.powerupSpawnMinMs;
+    gameConfig.powerupSpawnMinMs = gameConfig.powerupSpawnMaxMs;
+    gameConfig.powerupSpawnMaxMs = temp;
+  }
+  activePreset = null;
+}
+
+function applyConfigUpdate(category, key, value) {
+  const schema = CONFIG_SCHEMA[key];
+  if (!schema) return false;
+  if (schema.category !== category) return false;
+  // Block non-live settings during gameplay
+  if (gamePhase === 'playing' && !schema.live) return false;
+  // Validate value type
+  if (typeof schema.default === 'boolean') {
+    gameConfig[key] = !!value;
+  } else {
+    const num = Number(value);
+    if (isNaN(num)) return false;
+    const clamped = Math.max(schema.min, Math.min(schema.max, num));
+    gameConfig[key] = clamped;
+  }
+  activePreset = null;
+  return true;
+}
+
+function broadcastConfig() {
+  if (configBroadcastTimer) clearTimeout(configBroadcastTimer);
+  configBroadcastTimer = setTimeout(() => {
+    configBroadcastTimer = null;
+    const msg = JSON.stringify({
+      type: 'config_state',
+      config: gameConfig,
+      schema: CONFIG_SCHEMA,
+      presets: getPresetList(),
+      activePreset,
+    });
+    for (const ws of clients.keys()) {
+      if (ws.readyState === 1) ws.send(msg);
+    }
+  }, 100);
+}
+
 // Keep non-configurable constants
 const NUM_LEDS = 192;
 const TICK_MS = 16; // ~60fps
@@ -115,7 +247,6 @@ function speak(text) {
 }
 
 // --- Music (mpg123) ---
-const path = require('path');
 const { spawn: nodeSpawn } = require('child_process');
 let mpg123 = null;
 let hasMpg123 = false;
@@ -275,7 +406,21 @@ function randomBetween(min, max) {
 }
 
 function spawnPos() {
-  const taken = [...players.values()].map(p => p.pos);
+  const taken = [
+    ...[...players.values()].map(p => p.pos),
+    ...bombs.map(b => b.pos),
+  ];
+
+  if (gameConfig.randomSpawns) {
+    // Random position with safety distance from players/bombs
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const pos = Math.floor(Math.random() * NUM_LEDS);
+      if (!taken.some(t => Math.abs(t - pos) < 10)) return pos;
+    }
+    return Math.floor(Math.random() * NUM_LEDS);
+  }
+
+  // Fixed candidate positions
   const candidates = [0, 48, 96, 144, 191];
   for (const c of candidates) {
     if (!taken.some(t => Math.abs(t - c) < 20)) return c;
@@ -721,7 +866,7 @@ function tick() {
   }
   // Spawn fire from god bombs when they finish exploding
   for (const b of bombs) {
-    if (b.exploding && b.explodeFrame > gameConfig.bombExplodeFrames && b.godBomb) {
+    if (b.exploding && b.explodeFrame > gameConfig.bombExplodeFrames && (b.godBomb || gameConfig.bombLeavesFlames)) {
       for (let d = -gameConfig.flameSpread; d <= gameConfig.flameSpread; d++) {
         const fPos = b.pos + d;
         if (fPos >= 0 && fPos < NUM_LEDS) {
@@ -1091,6 +1236,7 @@ function connectExternal() {
           return;
         }
         if (input.type === 'god_bomb') {
+          if (!gameConfig.spectatorInteraction) return;
           if (gamePhase !== 'playing') return;
           const pos = Math.round(input.pos);
           if (pos < 0 || pos >= NUM_LEDS) return;
@@ -1139,11 +1285,58 @@ const server = Bun.serve({
       // Start as spectator — no player until they send { type: 'join' }
       clients.set(ws, null);
       ws.send(JSON.stringify({ type: 'spectating' }));
+      // Send full config state to new client
+      ws.send(JSON.stringify({
+        type: 'config_state',
+        config: gameConfig,
+        schema: CONFIG_SCHEMA,
+        presets: getPresetList(),
+        activePreset,
+      }));
       console.log('Spectator connected');
     },
     message(ws, msg) {
       try {
         const input = JSON.parse(msg);
+
+        // --- Config message handlers ---
+        if (input.type === 'config_update') {
+          applyConfigUpdate(input.category, input.key, input.value);
+          broadcastConfig();
+          return;
+        }
+        if (input.type === 'load_preset') {
+          loadPreset(input.name);
+          broadcastConfig();
+          return;
+        }
+        if (input.type === 'save_preset') {
+          savePreset(input.name);
+          broadcastConfig();
+          return;
+        }
+        if (input.type === 'delete_preset') {
+          deletePreset(input.name);
+          broadcastConfig();
+          return;
+        }
+        if (input.type === 'randomize') {
+          randomizeConfig();
+          broadcastConfig();
+          return;
+        }
+        if (input.type === 'reset_presets') {
+          // Delete all non-classic presets
+          const presets = getPresetList();
+          for (const name of presets) {
+            if (name !== 'classic') deletePreset(name);
+          }
+          loadPreset('classic');
+          broadcastConfig();
+          return;
+        }
+
+        // --- Game message handlers ---
         if (input.type === 'join') {
           if (gamePhase === 'victory') return;
           if (clients.get(ws)) return; // already joined
@@ -1164,6 +1357,7 @@ const server = Bun.serve({
         }
         // Hand of God — spectators only
         if (input.type === 'god_bomb') {
+          if (!gameConfig.spectatorInteraction) return;
           const id = clients.get(ws);
           if (id) return; // players can't use this
           if (gamePhase !== 'playing') return;
