@@ -45,6 +45,7 @@ const CONFIG_SCHEMA = {
   portalsMoving:    { default: false, category: 'portals', live: true },
   portalMoveIntervalMs: { default: 15000, min: 5000, max: 60000, step: 1000, category: 'portals', live: true },
   portalMomentum:   { default: 4,     min: 0, max: 12, step: 1, category: 'portals', live: true },
+  portalsAnywhere:  { default: false, category: 'portals', live: true },
 
   // Walls
   cornerWallsEnabled:   { default: false, category: 'walls', live: true },
@@ -58,6 +59,8 @@ const CONFIG_SCHEMA = {
   sweeperSize:          { default: 3,   min: 1, max: 10, step: 1, category: 'walls', live: true },
   sweeperSpeed:         { default: 0.25, min: 0.1, max: 2.0, step: 0.05, category: 'walls', live: true },
   sweeperLethal:        { default: true, category: 'walls', live: true },
+  bombsDestroyWalls:    { default: false, category: 'walls', live: true },
+  dashThroughWalls:     { default: false, category: 'walls', live: true },
 
   // Powerups
   powerupSpawnMinMs:    { default: 4000, min: 1000, max: 20000, step: 500, category: 'powerups', live: true },
@@ -684,13 +687,29 @@ function handleInput(playerId, input) {
     }
 
     // Wall collision checks
-    if (isWallAt(newPos)) return;
-    if (gameConfig.sweeperEnabled && gameConfig.sweeperLethal && isSweeperAt(newPos)) {
+    const hitWall = isWallAt(newPos);
+    const hitLethalSweeper = gameConfig.sweeperEnabled && gameConfig.sweeperLethal && isSweeperAt(newPos);
+
+    if (wantsDash && gameConfig.dashThroughWalls && (hitWall || isSweeperAt(newPos))) {
+      // Dash through: find the far side of the wall/sweeper
+      const dir = delta > 0 ? 1 : -1;
+      let landPos = newPos;
+      while (landPos >= 0 && landPos < NUM_LEDS && (isWallAt(landPos) || isSweeperAt(landPos))) {
+        landPos += dir;
+      }
+      // Consume dash regardless
+      player.hasDash = false;
+      player.lastDashTime = now;
+      if (landPos >= 0 && landPos < NUM_LEDS) {
+        player.pos = landPos;
+      }
+      // If landing is off-strip, player just stays put (dash consumed)
+    } else if (hitWall) {
+      return;
+    } else if (hitLethalSweeper) {
       hitPlayer(player, null, now);
       return;
-    }
-
-    if (wantsDash) {
+    } else if (wantsDash) {
       player.pos = newPos;
       player.hasDash = false;
       player.lastDashTime = now;
@@ -972,10 +991,43 @@ function tick() {
           hitPlayer(p, null, now);
         }
       }
+    } else {
+      // Barrier mode: push players and bombs ahead of the sweeper
+      let shouldReverse = false;
+      const pushPos = sweeper.dir > 0 ? sEnd + 1 : sStart - 1;
+
+      for (const p of players.values()) {
+        if (!p.alive) continue;
+        if (p.pos >= sStart && p.pos <= sEnd) {
+          if (pushPos < 0 || pushPos >= NUM_LEDS || isWallAt(pushPos)) {
+            shouldReverse = true;
+            break;
+          }
+          p.pos = pushPos;
+        }
+      }
+
+      if (!shouldReverse) {
+        for (const b of bombs) {
+          if (b.exploding) continue;
+          if (b.pos >= sStart && b.pos <= sEnd) {
+            if (pushPos < 0 || pushPos >= NUM_LEDS || isWallAt(pushPos)) {
+              shouldReverse = true;
+              break;
+            }
+            b.pos = pushPos;
+          }
+        }
+      }
+
+      if (shouldReverse) {
+        sweeper.dir *= -1;
+        sweeper.pos = Math.max(0, Math.min(NUM_LEDS - 1, sweeper.pos));
+      }
     }
 
-    // Destroy non-exploding bombs the sweeper passes over
-    bombs = bombs.filter(b => {
+    // Destroy non-exploding bombs the sweeper passes over (lethal mode only)
+    if (gameConfig.sweeperLethal) bombs = bombs.filter(b => {
       if (b.exploding) return true;
       return !(b.pos >= sStart && b.pos <= sEnd);
     });
@@ -989,15 +1041,29 @@ function tick() {
     portalBlinking = timeSinceMove >= interval - 2000;
 
     if (timeSinceMove >= interval) {
-      const available = PORTAL_LANDMARKS.filter(l => l !== portalA.pos && l !== portalB.pos);
-      if (available.length >= 2) {
-        const shuffled = available.sort(() => Math.random() - 0.5);
-        portalA.pos = shuffled[0];
-        portalB.pos = shuffled[1];
-      } else if (available.length === 1) {
-        const keepOld = Math.random() > 0.5 ? portalA.pos : portalB.pos;
-        portalA.pos = available[0];
-        portalB.pos = keepOld;
+      if (gameConfig.portalsAnywhere) {
+        // Pick two random positions with minimum distance of 20 LEDs apart
+        const MIN_DIST = 20;
+        for (let attempt = 0; attempt < 50; attempt++) {
+          const a = Math.floor(Math.random() * NUM_LEDS);
+          const b = Math.floor(Math.random() * NUM_LEDS);
+          if (Math.abs(a - b) >= MIN_DIST && !isWallAt(a) && !isWallAt(b)) {
+            portalA.pos = a;
+            portalB.pos = b;
+            break;
+          }
+        }
+      } else {
+        const available = PORTAL_LANDMARKS.filter(l => l !== portalA.pos && l !== portalB.pos);
+        if (available.length >= 2) {
+          const shuffled = available.sort(() => Math.random() - 0.5);
+          portalA.pos = shuffled[0];
+          portalB.pos = shuffled[1];
+        } else if (available.length === 1) {
+          const keepOld = Math.random() > 0.5 ? portalA.pos : portalB.pos;
+          portalA.pos = available[0];
+          portalB.pos = keepOld;
+        }
       }
       lastPortalMoveAt = now;
       portalBlinking = false;
@@ -1029,6 +1095,30 @@ function tick() {
         if (!p.alive) continue;
         if (Math.abs(p.pos - b.pos) <= r) {
           hitPlayer(p, b.owner, now);
+        }
+      }
+      // Chip away at walls within explosion radius
+      if (gameConfig.bombsDestroyWalls) {
+        for (const w of cornerWalls) {
+          if (w.currentSize === 0) continue;
+          const half = Math.floor(w.currentSize / 2);
+          for (let d = -half; d <= half; d++) {
+            if (Math.abs((w.pos + d) - b.pos) <= r) {
+              w.currentSize = Math.max(0, w.currentSize - 1);
+              break; // chip one LED per frame
+            }
+          }
+        }
+        for (let i = randomWalls.length - 1; i >= 0; i--) {
+          const w = randomWalls[i];
+          const half = Math.floor(w.size / 2);
+          for (let d = -half; d <= half; d++) {
+            if (Math.abs((w.pos + d) - b.pos) <= r) {
+              w.size--;
+              if (w.size <= 0) randomWalls.splice(i, 1);
+              break;
+            }
+          }
         }
       }
     } else {
