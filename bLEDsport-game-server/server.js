@@ -1289,14 +1289,14 @@ function tick() {
         }
       }
     } else {
-      // Ticking bomb: pulsing red, shrinking
+      // Ticking bomb: bright red center, dimmer red countdown pixels, all pulsing
       const half = Math.floor(b.width / 2);
       const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(animTime * 10));
       for (let d = -half; d <= half; d++) {
         const led = b.pos + d;
         if (led >= 0 && led < NUM_LEDS) {
-          const edge = 1 - Math.abs(d) / (half + 1) * 0.5;
-          pixels[led] = [Math.round(220 * pulse * edge), 0, 0];
+          const bri = d === 0 ? 255 : 120;
+          pixels[led] = [Math.round(bri * pulse), 0, 0];
         }
       }
     }
