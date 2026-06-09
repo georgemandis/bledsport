@@ -650,8 +650,8 @@ function hitPlayer(player, attackerId, now) {
   const attacker = players.get(attackerId);
   if (attacker && attacker !== player) attacker.score++;
 
-  const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
-  speak(`${player.name}, ${phrase}`);
+  // const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
+  // speak(`${player.name}, ${phrase}`);
 
   // Check for winner
   if (attacker && attacker !== player && attacker.score >= gameConfig.winsNeeded) {
@@ -792,7 +792,7 @@ function handleInput(playerId, input) {
     if (available <= 0) return;
     waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: gameConfig.waveMaxRadius });
     player.blastLastUsed.push(now);
-    speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
+    // speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
   }
 
   if (input.type === 'shield') {
@@ -1752,7 +1752,7 @@ const server = Bun.serve({
             explodeFrame: 0,
             godBomb: true,
           });
-          speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
+          // speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
           return;
         }
         const id = clients.get(ws);
