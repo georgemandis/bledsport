@@ -662,7 +662,7 @@ function hitPlayer(player, attackerId, now) {
   player.respawnAt = now + gameConfig.respawnMs;
   player.shieldActive = false;
   const attacker = players.get(attackerId);
-  if (attacker) attacker.score++;
+  if (attacker && attacker !== player) attacker.score++;
 
   // Check for winner
   if (attacker && attacker.score >= gameConfig.winsNeeded) {
