@@ -351,15 +351,6 @@ function sendToWled(pixels) {
     // else stays 0,0,0 (black) from Buffer.alloc
   }
 
-  // DEBUG: skip DDP send on first explosion frame to test if it prevents WLED crash
-  if (global._ddpDebugExplosion) {
-    const headerHex = buf.subarray(0, 10).toString('hex');
-    const totalNonZero = [...buf.subarray(10)].filter(b => b > 0).length;
-    console.log(`  [DDP] SKIPPED send — header=${headerHex} dataLen=${dataLen} bufLen=${buf.length} nonZeroDataBytes=${totalNonZero}`);
-    global._ddpDebugExplosion = false;
-    return; // skip this one frame
-  }
-
   ddpSocket.send(buf, WLED_DDP_PORT, WLED_HOST);
 }
 
@@ -665,40 +656,38 @@ const GOD_PHRASES = ['the hand of god', 'hand of god', 'divine intervention', 'w
 function hitPlayer(player, attackerId, now) {
   if (gamePhase !== 'playing') return; // game already ended
   if (player.shieldActive) return; // shield absorbs the hit
+
+  // DEBUG: minimal hitPlayer to isolate WLED crash
   player.alive = false;
   player.respawnAt = now + gameConfig.respawnMs;
   player.shieldActive = false;
-  const attacker = players.get(attackerId);
-  if (attacker) attacker.score++;
-  const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
-  // speak(`${player.name}, ${phrase}`);
+  console.log(`  HIT: ${player.name} killed by bomb (minimal hitPlayer)`);
 
-  // Announce score
-  if (attacker) {
-    const scores = [...players.values()]
-      .map(p => `${p.name}, ${p.score}`)
-      .join('. ');
-    setTimeout(() => {
-      // speak(`${scores}. out of ${gameConfig.winsNeeded}`);
-      // Check for match point
-      const matchPointPlayers = [...players.values()].filter(p => p.score === gameConfig.winsNeeded - 1);
-      if (matchPointPlayers.length > 0 && gamePhase === 'playing') {
-        setTimeout(() => {
-          // speak('match point');
-        }, 2000);
-      }
-    }, 1500);
-  }
+  // --- TEMPORARILY DISABLED for WLED crash debugging ---
+  // const attacker = players.get(attackerId);
+  // if (attacker) attacker.score++;
+  // const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
 
-  // Check for winner
-  if (attacker && attacker.score >= gameConfig.winsNeeded) {
-    gamePhase = 'victory';
-    victoryStart = now;
-    victoryColor = attacker.color;
-    victoryPlayerName = attacker.name;
-    // speak(`${attacker.name} wins`);
-    console.log(`${attacker.name} wins!`);
-  }
+  // if (attacker) {
+  //   const scores = [...players.values()]
+  //     .map(p => `${p.name}, ${p.score}`)
+  //     .join('. ');
+  //   setTimeout(() => {
+  //     const matchPointPlayers = [...players.values()].filter(p => p.score === gameConfig.winsNeeded - 1);
+  //     if (matchPointPlayers.length > 0 && gamePhase === 'playing') {
+  //       setTimeout(() => {
+  //       }, 2000);
+  //     }
+  //   }, 1500);
+  // }
+
+  // if (attacker && attacker.score >= gameConfig.winsNeeded) {
+  //   gamePhase = 'victory';
+  //   victoryStart = now;
+  //   victoryColor = attacker.color;
+  //   victoryPlayerName = attacker.name;
+  //   console.log(`${attacker.name} wins!`);
+  // }
 }
 
 // --- Input handling ---
@@ -1216,7 +1205,6 @@ function tick() {
       if (elapsed >= gameConfig.bombFuseMs) {
         b.exploding = true;
         b.explodeFrame = 0;
-        global._ddpDebugExplosion = true;
         console.log(`\n=== BOMB DETONATED ===`);
         console.log(`  bomb pos=${b.pos} owner=${b.owner}`);
         console.log(`  total bombs=${bombs.length}`);
@@ -1373,8 +1361,10 @@ function tick() {
 
   // Bombs
   for (const b of bombs) {
-    if (b.exploding) {
+    if (b.exploding && b.explodeFrame > 0) {
       // Explosion: expanding white-red flash (stops at walls)
+      // Note: skip explodeFrame 0 (render as ticking bomb) to avoid a sudden
+      // pixel transition that crashes certain WLED firmware on ESP32
       const r = Math.round(b.explodeFrame * (gameConfig.bombExplodeRadius / gameConfig.bombExplodeFrames));
       const fade = 1 - b.explodeFrame / gameConfig.bombExplodeFrames;
       // Expand in each direction, stopping when hitting a wall
