@@ -1,14 +1,6 @@
 // LED Arch Game — multiplayer server
 // Run: bun server.js [--debug] [--gamepad ./innext-controller.json]
 
-// Catch crashes
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err.stack || err);
-});
-process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION:', err.stack || err);
-});
-
 const fs = require('fs');
 const path = require('path');
 
@@ -359,9 +351,6 @@ function sendToWled(pixels) {
     // else stays 0,0,0 (black) from Buffer.alloc
   }
 
-  // DEBUG: disable DDP entirely to test if WLED crash is from our packets
-  if (process.env.NO_DDP) return;
-
   ddpSocket.send(buf, WLED_DDP_PORT, WLED_HOST);
 }
 
@@ -604,6 +593,7 @@ function isStaticWallAt(pos) {
 }
 
 function hasWallBetween(from, to) {
+  if (from === to) return false;
   const dir = to > from ? 1 : -1;
   for (let p = from + dir; p !== to; p += dir) {
     if (isStaticWallAt(p)) return true;
@@ -668,34 +658,20 @@ function hitPlayer(player, attackerId, now) {
   if (gamePhase !== 'playing') return; // game already ended
   if (player.shieldActive) return; // shield absorbs the hit
 
-  // DEBUG: do absolutely nothing — just log — to test if state change causes WLED crash
-  console.log(`  HIT: ${player.name} (NO-OP hitPlayer — player stays alive)`);
+  player.alive = false;
+  player.respawnAt = now + gameConfig.respawnMs;
+  player.shieldActive = false;
+  const attacker = players.get(attackerId);
+  if (attacker) attacker.score++;
 
-  // --- TEMPORARILY DISABLED for WLED crash debugging ---
-  // const attacker = players.get(attackerId);
-  // if (attacker) attacker.score++;
-  // const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
-
-  // if (attacker) {
-  //   const scores = [...players.values()]
-  //     .map(p => `${p.name}, ${p.score}`)
-  //     .join('. ');
-  //   setTimeout(() => {
-  //     const matchPointPlayers = [...players.values()].filter(p => p.score === gameConfig.winsNeeded - 1);
-  //     if (matchPointPlayers.length > 0 && gamePhase === 'playing') {
-  //       setTimeout(() => {
-  //       }, 2000);
-  //     }
-  //   }, 1500);
-  // }
-
-  // if (attacker && attacker.score >= gameConfig.winsNeeded) {
-  //   gamePhase = 'victory';
-  //   victoryStart = now;
-  //   victoryColor = attacker.color;
-  //   victoryPlayerName = attacker.name;
-  //   console.log(`${attacker.name} wins!`);
-  // }
+  // Check for winner
+  if (attacker && attacker.score >= gameConfig.winsNeeded) {
+    gamePhase = 'victory';
+    victoryStart = now;
+    victoryColor = attacker.color;
+    victoryPlayerName = attacker.name;
+    console.log(`${attacker.name} wins!`);
+  }
 }
 
 // --- Input handling ---
@@ -1167,20 +1143,11 @@ function tick() {
       b.explodeFrame++;
       // Check explosion hits (walls block the blast)
       const r = Math.round(b.explodeFrame * (gameConfig.bombExplodeRadius / gameConfig.bombExplodeFrames));
-      const phaseBefore = gamePhase;
       for (const p of players.values()) {
         if (!p.alive) continue;
-        const dist = Math.abs(p.pos - b.pos);
-        if (dist <= r && !hasWallBetween(b.pos, p.pos)) {
-          console.log(`  EXPLOSION HIT: ${p.name} at pos=${p.pos} by bomb@${b.pos} (frame=${b.explodeFrame} r=${r} dist=${dist})`);
+        if (Math.abs(p.pos - b.pos) <= r && !hasWallBetween(b.pos, p.pos)) {
           hitPlayer(p, b.owner, now);
-          if (gamePhase !== phaseBefore) {
-            console.log(`  >>> PHASE CHANGED: ${phaseBefore} -> ${gamePhase} (victory triggered mid-explosion)`);
-          }
         }
-      }
-      if (b.explodeFrame <= 2) {
-        console.log(`  [bomb tick] bomb@${b.pos} frame=${b.explodeFrame} r=${r} phase=${gamePhase}`);
       }
       // Chip away at walls within explosion radius
       if (gameConfig.bombsDestroyWalls) {
@@ -1213,19 +1180,6 @@ function tick() {
       if (elapsed >= gameConfig.bombFuseMs) {
         b.exploding = true;
         b.explodeFrame = 0;
-        console.log(`\n=== BOMB DETONATED ===`);
-        console.log(`  bomb pos=${b.pos} owner=${b.owner}`);
-        console.log(`  total bombs=${bombs.length}`);
-        // Log all bomb states
-        for (const ob of bombs) {
-          const timeLeft = ob.exploding ? 'EXPLODING' : `${((gameConfig.bombFuseMs - (now - ob.placedAt)) / 1000).toFixed(1)}s left`;
-          console.log(`    bomb@${ob.pos} owner=${ob.owner} ${timeLeft} kickDir=${ob.kickDir || 0}`);
-        }
-        // Log all player states
-        for (const [id, p] of players) {
-          console.log(`    player ${p.name}(${id}) pos=${p.pos} alive=${p.alive} score=${p.score}/${gameConfig.winsNeeded}`);
-        }
-        console.log(`  gamePhase=${gamePhase}`);
       }
       // Kick sliding
       if (b.kickDir) {
@@ -1457,29 +1411,6 @@ function tick() {
       Math.round(p.color[1] * pulse),
       Math.round(p.color[2] * pulse),
     ];
-  }
-
-  // Log pixel stats on frames with active explosions
-  const activeExplosions = bombs.filter(b => b.exploding);
-  if (activeExplosions.length > 0) {
-    const litPixels = pixels.filter(p => p !== null).length;
-    const maxR = Math.max(...pixels.filter(p => p).map(p => p[0]));
-    const maxG = Math.max(...pixels.filter(p => p).map(p => p[1]));
-    const maxB = Math.max(...pixels.filter(p => p).map(p => p[2]));
-    console.log(`  [render] explosions=${activeExplosions.length} litPixels=${litPixels} maxRGB=[${maxR},${maxG},${maxB}] phase=${gamePhase} seq=${ddpSeq}`);
-    // Dump the raw DDP pixel values around the bomb for first explosion frame
-    for (const eb of activeExplosions) {
-      if (eb.explodeFrame <= 1) {
-        const start = Math.max(0, eb.pos - 3);
-        const end = Math.min(NUM_LEDS - 1, eb.pos + 3);
-        const slice = [];
-        for (let i = start; i <= end; i++) {
-          const p = pixels[i];
-          slice.push(`${i}:${p ? `[${p}]` : 'null'}`);
-        }
-        console.log(`    pixels near bomb@${eb.pos}: ${slice.join(' ')}`);
-      }
-    }
   }
 
   sendToWled(pixels);
