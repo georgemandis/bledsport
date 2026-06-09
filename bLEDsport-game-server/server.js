@@ -355,6 +355,13 @@ let randomWalls = []; // { pos, size }
 let lastRandomWallSpawn = 0;
 let sweeper = { pos: 0, dir: 1 };
 
+// Portal state (moving portals)
+const PORTAL_LANDMARKS = [0, ZONES[1].start, ZONES[1].end, NUM_LEDS - 1]; // [0, 58, 134, 191]
+let portalA = { pos: 0 };
+let portalB = { pos: NUM_LEDS - 1 };
+let lastPortalMoveAt = 0;
+let portalBlinking = false;
+
 function resetGame() {
   gamePhase = 'waiting';
   waves = [];
@@ -379,6 +386,10 @@ function resetGame() {
   randomWalls = [];
   sweeper.pos = 0;
   sweeper.dir = 1;
+  portalA.pos = 0;
+  portalB.pos = NUM_LEDS - 1;
+  lastPortalMoveAt = Date.now();
+  portalBlinking = false;
   musicStop();
   console.log('Game reset — waiting for players');
 }
@@ -414,6 +425,10 @@ function startGame() {
   lastRandomWallSpawn = Date.now();
   sweeper.pos = 0;
   sweeper.dir = 1;
+  portalA.pos = 0;
+  portalB.pos = NUM_LEDS - 1;
+  lastPortalMoveAt = Date.now();
+  portalBlinking = false;
   // speak('fight');
   musicPlay('fight.mp3');
   console.log(`Game started with ${players.size} players`);
@@ -497,6 +512,13 @@ function wrapPos(pos) {
   if (pos < 0) return NUM_LEDS - 1;
   if (pos >= NUM_LEDS) return 0;
   return pos;
+}
+
+function checkPortalTeleport(pos, dir) {
+  if (!gameConfig.portalsEnabled) return null;
+  if (pos === portalA.pos) return { dest: portalB.pos, momentum: Math.max(gameConfig.portalMomentum, gameConfig.momentumTicks) };
+  if (pos === portalB.pos) return { dest: portalA.pos, momentum: Math.max(gameConfig.portalMomentum, gameConfig.momentumTicks) };
+  return null;
 }
 
 function getZone(pos) {
@@ -637,10 +659,28 @@ function handleInput(playerId, input) {
     player.lastDelta = delta > 0 ? 1 : -1;
     player.lastMoveTime = now;
     let newPos = player.pos + delta;
-    let throughPortal = false;
+
+    // Check if we walked off the edge
     if (newPos < 0 || newPos >= NUM_LEDS) {
-      newPos = wrapPos(newPos);
-      throughPortal = true;
+      const portal = checkPortalTeleport(player.pos, delta > 0 ? 1 : -1);
+      if (portal) {
+        player.pos = portal.dest;
+        player.momentum = portal.momentum;
+        player.momentumDir = delta > 0 ? 1 : -1;
+        player.lastMomentumTime = now;
+        return;
+      }
+      return; // edge of arch, no portal, can't move
+    }
+
+    // Check portal at new position (for non-edge portals when portalsMoving is true)
+    const portal = checkPortalTeleport(newPos, delta > 0 ? 1 : -1);
+    if (portal) {
+      player.pos = portal.dest;
+      player.momentum = portal.momentum;
+      player.momentumDir = delta > 0 ? 1 : -1;
+      player.lastMomentumTime = now;
+      return;
     }
 
     // Wall collision checks
@@ -657,16 +697,14 @@ function handleInput(playerId, input) {
     } else {
       const oldPos = player.pos;
       player.pos = newPos;
-      if (!throughPortal) {
-        const bumpDir = delta > 0 ? 1 : -1;
-        const blocked = pushChain(player, bumpDir, playerId);
-        if (blocked) player.pos = oldPos;
-      }
+      const bumpDir = delta > 0 ? 1 : -1;
+      const blocked = pushChain(player, bumpDir, playerId);
+      if (blocked) player.pos = oldPos;
     }
 
-    // Apply portal momentum
-    if (throughPortal) {
-      player.momentum = gameConfig.portalMomentum;
+    // Apply skating momentum (if configured)
+    if (gameConfig.momentumTicks > 0) {
+      player.momentum = gameConfig.momentumTicks;
       player.momentumDir = delta > 0 ? 1 : -1;
       player.lastMomentumTime = now;
     }
@@ -789,14 +827,30 @@ function tick() {
   if (gamePhase === 'waiting') {
     // Idle animation: gentle portal glow, rainbow idle
     const pixels = new Array(NUM_LEDS).fill(null);
-    // Portal glow
-    const portalPulse = 0.3 + 0.3 * Math.sin(animTime * 4);
-    const portalSwirl = 0.15 * Math.sin(animTime * 7);
-    for (let d = 0; d < PORTAL_GLOW_SIZE; d++) {
-      const fade = (1 - d / PORTAL_GLOW_SIZE) * portalPulse;
-      const swirl2 = portalSwirl * (1 - d / PORTAL_GLOW_SIZE);
-      pixels[d] = [Math.round(255*(fade+swirl2)), Math.round(140*(fade+swirl2)), Math.round(20*fade)];
-      pixels[NUM_LEDS-1-d] = [Math.round(20*fade), Math.round(100*(fade+swirl2)), Math.round(255*(fade+swirl2))];
+    // Portal glow (dynamic positions)
+    if (gameConfig.portalsEnabled) {
+      const portalPulse = portalBlinking
+        ? (Math.sin(animTime * 15) > 0 ? 0.6 : 0.1)
+        : 0.3 + 0.3 * Math.sin(animTime * 4);
+      const portalSwirl = 0.15 * Math.sin(animTime * 7);
+
+      for (let d = 0; d < PORTAL_GLOW_SIZE; d++) {
+        const fade = (1 - d / PORTAL_GLOW_SIZE) * portalPulse;
+        const swirl2 = portalSwirl * (1 - d / PORTAL_GLOW_SIZE);
+
+        // Portal A (orange)
+        const aDir = portalA.pos === 0 ? 1 : -1;
+        const aLed = portalA.pos + d * aDir;
+        if (aLed >= 0 && aLed < NUM_LEDS) {
+          pixels[aLed] = [Math.round(255*(fade+swirl2)), Math.round(140*(fade+swirl2)), Math.round(20*fade)];
+        }
+        // Portal B (blue)
+        const bDir = portalB.pos === NUM_LEDS - 1 ? -1 : 1;
+        const bLed = portalB.pos + d * bDir;
+        if (bLed >= 0 && bLed < NUM_LEDS) {
+          pixels[bLed] = [Math.round(20*fade), Math.round(100*(fade+swirl2)), Math.round(255*(fade+swirl2))];
+        }
+      }
     }
     // Gentle rainbow idle
     for (let i = PORTAL_GLOW_SIZE; i < NUM_LEDS - PORTAL_GLOW_SIZE; i++) {
@@ -927,6 +981,31 @@ function tick() {
     });
   }
 
+  // Moving portals
+  if (gameConfig.portalsEnabled && gameConfig.portalsMoving) {
+    const timeSinceMove = now - lastPortalMoveAt;
+    const interval = gameConfig.portalMoveIntervalMs;
+
+    portalBlinking = timeSinceMove >= interval - 2000;
+
+    if (timeSinceMove >= interval) {
+      const available = PORTAL_LANDMARKS.filter(l => l !== portalA.pos && l !== portalB.pos);
+      if (available.length >= 2) {
+        const shuffled = available.sort(() => Math.random() - 0.5);
+        portalA.pos = shuffled[0];
+        portalB.pos = shuffled[1];
+      } else if (available.length === 1) {
+        const keepOld = Math.random() > 0.5 ? portalA.pos : portalB.pos;
+        portalA.pos = available[0];
+        portalB.pos = keepOld;
+      }
+      lastPortalMoveAt = now;
+      portalBlinking = false;
+    }
+  } else {
+    portalBlinking = false;
+  }
+
   // Advance waves
   for (const w of waves) {
     w.radius += gameConfig.waveSpeed;
@@ -1013,24 +1092,30 @@ function tick() {
   // --- Render ---
   const pixels = new Array(NUM_LEDS).fill(null);
 
-  // Portal glow (LED 0 = orange, LED 191 = blue)
-  const portalPulse = 0.3 + 0.3 * Math.sin(animTime * 4);
-  const portalSwirl = 0.15 * Math.sin(animTime * 7);
-  for (let d = 0; d < PORTAL_GLOW_SIZE; d++) {
-    const fade = (1 - d / PORTAL_GLOW_SIZE) * portalPulse;
-    const swirl2 = portalSwirl * (1 - d / PORTAL_GLOW_SIZE);
-    // Orange portal at LED 0
-    pixels[d] = [
-      Math.round(255 * (fade + swirl2)),
-      Math.round(140 * (fade + swirl2)),
-      Math.round(20 * fade),
-    ];
-    // Blue portal at LED 191
-    pixels[NUM_LEDS - 1 - d] = [
-      Math.round(20 * fade),
-      Math.round(100 * (fade + swirl2)),
-      Math.round(255 * (fade + swirl2)),
-    ];
+  // Portal glow (dynamic positions)
+  if (gameConfig.portalsEnabled) {
+    const portalPulse = portalBlinking
+      ? (Math.sin(animTime * 15) > 0 ? 0.6 : 0.1)
+      : 0.3 + 0.3 * Math.sin(animTime * 4);
+    const portalSwirl = 0.15 * Math.sin(animTime * 7);
+
+    for (let d = 0; d < PORTAL_GLOW_SIZE; d++) {
+      const fade = (1 - d / PORTAL_GLOW_SIZE) * portalPulse;
+      const swirl2 = portalSwirl * (1 - d / PORTAL_GLOW_SIZE);
+
+      // Portal A (orange) — glow extends inward from portal position
+      const aDir = portalA.pos === 0 ? 1 : -1;
+      const aLed = portalA.pos + d * aDir;
+      if (aLed >= 0 && aLed < NUM_LEDS) {
+        pixels[aLed] = [Math.round(255*(fade+swirl2)), Math.round(140*(fade+swirl2)), Math.round(20*fade)];
+      }
+      // Portal B (blue) — glow extends inward
+      const bDir = portalB.pos === NUM_LEDS - 1 ? -1 : 1;
+      const bLed = portalB.pos + d * bDir;
+      if (bLed >= 0 && bLed < NUM_LEDS) {
+        pixels[bLed] = [Math.round(20*fade), Math.round(100*(fade+swirl2)), Math.round(255*(fade+swirl2))];
+      }
+    }
   }
 
   // Corner walls (orange)
@@ -1194,6 +1279,9 @@ function tick() {
     cornerWalls: cornerWalls.map(w => ({ pos: w.pos, size: w.currentSize })),
     randomWalls: randomWalls.map(w => ({ pos: w.pos, size: w.size })),
     sweeper: gameConfig.sweeperEnabled ? { pos: Math.floor(sweeper.pos), size: gameConfig.sweeperSize, lethal: gameConfig.sweeperLethal } : null,
+    portalA: portalA.pos,
+    portalB: portalB.pos,
+    portalBlinking,
     animTime,
   });
 }
