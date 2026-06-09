@@ -50,8 +50,6 @@
 </div>
 <div class="status" id="status">Connecting...</div>
 <div class="scoreboard" id="scoreboard"></div>
-<button id="joinBtn" style="margin-top:1rem; padding:0.6rem 2rem; font-family:monospace; font-size:1rem; background:#2a2; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Join Game</button>
-<button id="startBtn" style="margin-top:0.5rem; padding:0.6rem 2rem; font-family:monospace; font-size:1rem; background:#c60; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Start Game</button>
 
 <script>
 // ============================================================
@@ -83,24 +81,13 @@ const conn = {
       this.ready = true;
       document.getElementById('status').textContent = 'Spectating';
       document.getElementById('status').style.color = '#4a4';
-      document.getElementById('joinBtn').style.display = '';
     };
 
     this.ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
-      if (msg.type === 'welcome') {
-        this.myId = msg.id;
-        this.myColor = msg.color;
-        document.getElementById('status').textContent = `You are Player ${msg.id} — waiting for game to start`;
-        document.getElementById('joinBtn').style.display = 'none';
-        document.getElementById('startBtn').style.display = '';
-      }
       if (msg.type === 'reset') {
-        this.myId = null;
-        document.getElementById('status').textContent = 'Game reset — join to play again';
+        document.getElementById('status').textContent = 'Game reset';
         document.getElementById('status').style.color = '#4a4';
-        document.getElementById('joinBtn').style.display = '';
-        document.getElementById('startBtn').style.display = 'none';
       }
       if (msg.type === 'state') {
         gameState.players = msg.players;
@@ -113,10 +100,6 @@ const conn = {
         gameState.victoryColor = msg.victoryColor;
         gameState.victoryPlayerName = msg.victoryPlayerName;
         if (msg.gamePhase === 'playing') {
-          document.getElementById('startBtn').style.display = 'none';
-          if (this.myId) {
-            document.getElementById('status').textContent = `You are Player ${this.myId}`;
-          }
         }
         renderer.draw();
       }
@@ -127,7 +110,6 @@ const conn = {
       this.myId = null;
       document.getElementById('status').textContent = 'Disconnected — reconnecting...';
       document.getElementById('status').style.color = '#a84';
-      document.getElementById('joinBtn').style.display = 'none';
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = setTimeout(() => this.connect(), 1000);
     };
@@ -485,36 +467,6 @@ function stopDirRepeat(dir) {
 
 const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
-document.getElementById('joinBtn').addEventListener('click', () => {
-  conn.send({ type: 'join' });
-});
-
-// Hand of God — spectators click canvas to drop a bomb
-canvas.addEventListener('click', (e) => {
-  if (conn.myId) return; // players can't use this
-  if (gameState.gamePhase !== 'playing') return;
-  const rect = canvas.getBoundingClientRect();
-  const cx = e.clientX - rect.left;
-  const cy = e.clientY - rect.top;
-  // Find nearest LED
-  let closest = 0;
-  let closestDist = Infinity;
-  for (let i = 0; i < renderer.ledPositions.length; i++) {
-    const lp = renderer.ledPositions[i];
-    const dx = lp.x - cx;
-    const dy = lp.y - cy;
-    const dist = dx * dx + dy * dy;
-    if (dist < closestDist) {
-      closestDist = dist;
-      closest = i;
-    }
-  }
-  conn.send({ type: 'god_bomb', pos: closest });
-});
-
-document.getElementById('startBtn').addEventListener('click', () => {
-  conn.send({ type: 'start_game' });
-});
 
 document.addEventListener('keydown', (e) => {
   if (!conn.myId) return; // not joined yet
