@@ -346,6 +346,15 @@ let animTime = 0;
 let lastPowerupSpawn = Date.now();
 let nextPowerupDelay = randomBetween(gameConfig.powerupSpawnMinMs, gameConfig.powerupSpawnMaxMs);
 
+// Wall state
+let cornerWalls = [
+  { pos: ZONES[1].start, currentSize: 0, lastGrowAt: 0 }, // LED 58 (left/top boundary)
+  { pos: ZONES[1].end, currentSize: 0, lastGrowAt: 0 },   // LED 134 (top/right boundary)
+];
+let randomWalls = []; // { pos, size }
+let lastRandomWallSpawn = 0;
+let sweeper = { pos: 0, dir: 1 };
+
 function resetGame() {
   gamePhase = 'waiting';
   waves = [];
@@ -366,6 +375,10 @@ function resetGame() {
   if (globalThis.padPlayers) globalThis.padPlayers.clear();
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
+  cornerWalls.forEach(w => { w.currentSize = 0; w.lastGrowAt = 0; });
+  randomWalls = [];
+  sweeper.pos = 0;
+  sweeper.dir = 1;
   musicStop();
   console.log('Game reset — waiting for players');
 }
@@ -396,6 +409,11 @@ function startGame() {
   fires = [];
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
+  cornerWalls.forEach(w => { w.currentSize = 0; w.lastGrowAt = Date.now(); });
+  randomWalls = [];
+  lastRandomWallSpawn = Date.now();
+  sweeper.pos = 0;
+  sweeper.dir = 1;
   // speak('fight');
   musicPlay('fight.mp3');
   console.log(`Game started with ${players.size} players`);
@@ -485,6 +503,36 @@ function getZone(pos) {
   return ZONES.find(z => pos >= z.start && pos <= z.end) || ZONES[0];
 }
 
+// --- Wall collision helpers ---
+function isWallAt(pos) {
+  if (gameConfig.cornerWallsEnabled) {
+    for (const w of cornerWalls) {
+      if (w.currentSize === 0) continue;
+      const half = Math.floor(w.currentSize / 2);
+      if (pos >= w.pos - half && pos <= w.pos + half) return true;
+    }
+  }
+  if (gameConfig.randomWallsEnabled) {
+    for (const w of randomWalls) {
+      const half = Math.floor(w.size / 2);
+      if (pos >= w.pos - half && pos <= w.pos + half) return true;
+    }
+  }
+  if (gameConfig.sweeperEnabled && !gameConfig.sweeperLethal) {
+    const sStart = Math.floor(sweeper.pos);
+    const sEnd = sStart + gameConfig.sweeperSize - 1;
+    if (pos >= sStart && pos <= sEnd) return true;
+  }
+  return false;
+}
+
+function isSweeperAt(pos) {
+  if (!gameConfig.sweeperEnabled) return false;
+  const sStart = Math.floor(sweeper.pos);
+  const sEnd = sStart + gameConfig.sweeperSize - 1;
+  return pos >= sStart && pos <= sEnd;
+}
+
 function playersOverlap(a, b) {
   return a.pos === b.pos;
 }
@@ -513,6 +561,7 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
     const otherResisting = (other.lastDelta !== 0 && other.lastDelta === -dir);
     if (otherResisting) return true;
     const targetPos = wrapPos(pusher.pos + dir);
+    if (isWallAt(targetPos)) return true; // wall blocks push
     const oldOtherPos = other.pos;
     other.pos = targetPos;
     const chainBlocked = pushChain(other, dir, originId, visited);
@@ -592,6 +641,13 @@ function handleInput(playerId, input) {
     if (newPos < 0 || newPos >= NUM_LEDS) {
       newPos = wrapPos(newPos);
       throughPortal = true;
+    }
+
+    // Wall collision checks
+    if (isWallAt(newPos)) return;
+    if (gameConfig.sweeperEnabled && gameConfig.sweeperLethal && isSweeperAt(newPos)) {
+      hitPlayer(player, null, now);
+      return;
     }
 
     if (wantsDash) {
@@ -782,9 +838,17 @@ function tick() {
     if (!p.hasDash && p.alive && now - p.lastDashTime >= gameConfig.dashRegenMs) p.hasDash = true;
     // Portal momentum
     if (p.momentum > 0 && p.alive && now - p.lastMomentumTime >= gameConfig.momentumIntervalMs) {
-      p.pos = wrapPos(p.pos + p.momentumDir);
-      p.momentum--;
-      p.lastMomentumTime = now;
+      const nextPos = wrapPos(p.pos + p.momentumDir);
+      if (isWallAt(nextPos)) {
+        p.momentum = 0;
+      } else if (gameConfig.sweeperEnabled && gameConfig.sweeperLethal && isSweeperAt(nextPos)) {
+        hitPlayer(p, null, now);
+        p.momentum = 0;
+      } else {
+        p.pos = nextPos;
+        p.momentum--;
+        p.lastMomentumTime = now;
+      }
     }
     // Shield expiration
     if (p.shieldActive && now >= p.shieldActiveUntil) {
@@ -805,6 +869,62 @@ function tick() {
       p.blastLastUsed = [];
       p.shieldLastUsed = 0;
     }
+  }
+
+  // Corner walls
+  if (gameConfig.cornerWallsEnabled) {
+    for (const w of cornerWalls) {
+      if (w.currentSize < gameConfig.cornerWallMaxSize && now - w.lastGrowAt >= gameConfig.cornerWallGrowMs) {
+        w.currentSize++;
+        w.lastGrowAt = now;
+      }
+    }
+  }
+
+  // Random walls
+  if (gameConfig.randomWallsEnabled) {
+    if (randomWalls.length < gameConfig.randomWallMaxCount && now - lastRandomWallSpawn >= gameConfig.randomWallSpawnMs) {
+      const allOccupied = [
+        ...randomWalls.map(w => w.pos),
+        ...cornerWalls.map(w => w.pos),
+        ...[...players.values()].map(p => p.pos),
+        ...bombs.map(b => b.pos),
+      ];
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const pos = 10 + Math.floor(Math.random() * (NUM_LEDS - 20));
+        if (!allOccupied.some(o => Math.abs(o - pos) < 10)) {
+          randomWalls.push({ pos, size: gameConfig.randomWallSize });
+          lastRandomWallSpawn = now;
+          break;
+        }
+      }
+    }
+  }
+
+  // Sweeper wall
+  if (gameConfig.sweeperEnabled) {
+    sweeper.pos += sweeper.dir * gameConfig.sweeperSpeed;
+    if (sweeper.pos <= 0 || sweeper.pos >= NUM_LEDS - 1) {
+      sweeper.dir *= -1;
+      sweeper.pos = Math.max(0, Math.min(NUM_LEDS - 1, sweeper.pos));
+    }
+    const sStart = Math.floor(sweeper.pos);
+    const sEnd = sStart + gameConfig.sweeperSize - 1;
+
+    if (gameConfig.sweeperLethal) {
+      for (const p of players.values()) {
+        if (!p.alive) continue;
+        if (p.pos >= sStart && p.pos <= sEnd) {
+          hitPlayer(p, null, now);
+        }
+      }
+    }
+
+    // Destroy non-exploding bombs the sweeper passes over
+    bombs = bombs.filter(b => {
+      if (b.exploding) return true;
+      return !(b.pos >= sStart && b.pos <= sEnd);
+    });
   }
 
   // Advance waves
@@ -847,6 +967,8 @@ function tick() {
         while (b.kickProgress >= 1) {
           b.kickProgress -= 1;
           const newPos = wrapPos(b.pos + b.kickDir);
+          // Stop if it hits a wall
+          if (isWallAt(newPos)) { b.kickDir = 0; break; }
           // Stop if it hits a player
           let hitPlayer = false;
           for (const p of players.values()) {
@@ -909,6 +1031,53 @@ function tick() {
       Math.round(100 * (fade + swirl2)),
       Math.round(255 * (fade + swirl2)),
     ];
+  }
+
+  // Corner walls (orange)
+  if (gameConfig.cornerWallsEnabled) {
+    for (const w of cornerWalls) {
+      if (w.currentSize === 0) continue;
+      const half = Math.floor(w.currentSize / 2);
+      for (let d = -half; d <= half; d++) {
+        const led = w.pos + d;
+        if (led >= 0 && led < NUM_LEDS) {
+          pixels[led] = [200, 120, 20];
+        }
+      }
+    }
+  }
+
+  // Random walls (orange)
+  if (gameConfig.randomWallsEnabled) {
+    for (const w of randomWalls) {
+      const half = Math.floor(w.size / 2);
+      for (let d = -half; d <= half; d++) {
+        const led = w.pos + d;
+        if (led >= 0 && led < NUM_LEDS) {
+          pixels[led] = [200, 120, 20];
+        }
+      }
+    }
+  }
+
+  // Sweeper wall
+  if (gameConfig.sweeperEnabled) {
+    const sStart = Math.floor(sweeper.pos);
+    const sEnd = sStart + gameConfig.sweeperSize - 1;
+    if (gameConfig.sweeperLethal) {
+      const pulse = 0.5 + 0.5 * Math.sin(animTime * 8);
+      for (let i = sStart; i <= sEnd; i++) {
+        if (i >= 0 && i < NUM_LEDS) {
+          pixels[i] = [Math.round(255 * pulse), 0, 0];
+        }
+      }
+    } else {
+      for (let i = sStart; i <= sEnd; i++) {
+        if (i >= 0 && i < NUM_LEDS) {
+          pixels[i] = [100, 100, 90];
+        }
+      }
+    }
   }
 
   // Power-ups: rainbow gradient oscillation
@@ -1022,6 +1191,9 @@ function tick() {
     powerups: powerups.map(p => ({ pos: p.pos, type: p.type })),
     bombs: bombs.map(b => ({ pos: b.pos, owner: b.owner, width: b.width, exploding: b.exploding, explodeFrame: b.explodeFrame, godBomb: b.godBomb || false })),
     fires: fires.map(f => ({ pos: f.pos, age: (Date.now() - f.placedAt) / gameConfig.flameDurationMs })),
+    cornerWalls: cornerWalls.map(w => ({ pos: w.pos, size: w.currentSize })),
+    randomWalls: randomWalls.map(w => ({ pos: w.pos, size: w.size })),
+    sweeper: gameConfig.sweeperEnabled ? { pos: Math.floor(sweeper.pos), size: gameConfig.sweeperSize, lethal: gameConfig.sweeperLethal } : null,
     animTime,
   });
 }
