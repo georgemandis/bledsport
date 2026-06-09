@@ -1161,10 +1161,15 @@ function tick() {
       b.explodeFrame++;
       // Check explosion hits (walls block the blast)
       const r = Math.round(b.explodeFrame * (gameConfig.bombExplodeRadius / gameConfig.bombExplodeFrames));
+      const phaseBefore = gamePhase;
       for (const p of players.values()) {
         if (!p.alive) continue;
         if (Math.abs(p.pos - b.pos) <= r && !hasWallBetween(b.pos, p.pos)) {
+          console.log(`  EXPLOSION HIT: ${p.name} at pos=${p.pos} by bomb@${b.pos} (frame=${b.explodeFrame} r=${r})`);
           hitPlayer(p, b.owner, now);
+          if (gamePhase !== phaseBefore) {
+            console.log(`  >>> PHASE CHANGED: ${phaseBefore} -> ${gamePhase} (victory triggered mid-explosion)`);
+          }
         }
       }
       // Chip away at walls within explosion radius
@@ -1198,7 +1203,19 @@ function tick() {
       if (elapsed >= gameConfig.bombFuseMs) {
         b.exploding = true;
         b.explodeFrame = 0;
-        // speak(EXPLOSION_PHRASES[Math.floor(Math.random() * EXPLOSION_PHRASES.length)]);
+        console.log(`\n=== BOMB DETONATED ===`);
+        console.log(`  bomb pos=${b.pos} owner=${b.owner}`);
+        console.log(`  total bombs=${bombs.length}`);
+        // Log all bomb states
+        for (const ob of bombs) {
+          const timeLeft = ob.exploding ? 'EXPLODING' : `${((gameConfig.bombFuseMs - (now - ob.placedAt)) / 1000).toFixed(1)}s left`;
+          console.log(`    bomb@${ob.pos} owner=${ob.owner} ${timeLeft} kickDir=${ob.kickDir || 0}`);
+        }
+        // Log all player states
+        for (const [id, p] of players) {
+          console.log(`    player ${p.name}(${id}) pos=${p.pos} alive=${p.alive} score=${p.score}/${gameConfig.winsNeeded}`);
+        }
+        console.log(`  gamePhase=${gamePhase}`);
       }
       // Kick sliding
       if (b.kickDir) {
@@ -1428,6 +1445,16 @@ function tick() {
       Math.round(p.color[1] * pulse),
       Math.round(p.color[2] * pulse),
     ];
+  }
+
+  // Log pixel stats on frames with active explosions
+  const activeExplosions = bombs.filter(b => b.exploding);
+  if (activeExplosions.length > 0) {
+    const litPixels = pixels.filter(p => p !== null).length;
+    const maxR = Math.max(...pixels.filter(p => p).map(p => p[0]));
+    const maxG = Math.max(...pixels.filter(p => p).map(p => p[1]));
+    const maxB = Math.max(...pixels.filter(p => p).map(p => p[2]));
+    console.log(`  [render] explosions=${activeExplosions.length} litPixels=${litPixels} maxRGB=[${maxR},${maxG},${maxB}] phase=${gamePhase}`);
   }
 
   sendToWled(pixels);
