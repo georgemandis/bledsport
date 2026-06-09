@@ -1,6 +1,14 @@
 // LED Arch Game — multiplayer server
 // Run: bun server.js [--debug] [--gamepad ./innext-controller.json]
 
+// Catch crashes
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err.stack || err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION:', err.stack || err);
+});
+
 const fs = require('fs');
 const path = require('path');
 
