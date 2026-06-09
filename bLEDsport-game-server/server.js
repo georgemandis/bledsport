@@ -60,8 +60,8 @@ const CONFIG_SCHEMA = {
   sweeperSize:          { default: 3,   min: 1, max: 10, step: 1, category: 'walls', live: true },
   sweeperSpeed:         { default: 0.25, min: 0.1, max: 2.0, step: 0.05, category: 'walls', live: true },
   sweeperLethal:        { default: true, category: 'walls', live: true },
-  bombsDestroyWalls:    { default: false, category: 'walls', live: true },
-  dashThroughWalls:     { default: false, category: 'walls', live: true },
+  bombsDestroyWalls:    { default: true, category: 'walls', live: true },
+  dashThroughWalls:     { default: true, category: 'walls', live: true },
 
   // Powerups
   powerupSpawnMinMs:    { default: 4000, min: 1000, max: 20000, step: 500, category: 'powerups', live: true },
@@ -287,7 +287,7 @@ function initMusic() {
 
 function musicPlay(file) {
   if (!hasMpg123) return;
-  musicStop();
+  // musicStop();
   const filePath = path.resolve(__dirname, 'assets', file);
   console.log('Music path:', filePath);
   mpg123 = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
@@ -299,11 +299,11 @@ function musicPlay(file) {
   console.log('Music playing:', file, '(pid ' + mpg123.pid + ')');
 }
 
-function musicStop() {
-  if (!mpg123) return;
-  mpg123.kill();
-  mpg123 = null;
-}
+// function musicStop() {
+//   if (!mpg123) return;
+//   mpg123.kill();
+//   mpg123 = null;
+// }
 
 // --- WLED connection (DDP over UDP) ---
 const WLED_HOST = '10.100.3.132';
@@ -414,7 +414,7 @@ function resetGame() {
   portalB.pos = NUM_LEDS - 1;
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
-  musicStop();
+  // musicStop();
   console.log('Game reset — waiting for players');
 }
 
@@ -454,7 +454,7 @@ function startGame() {
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
   // speak('fight');
-  musicPlay('fight.mp3');
+  // musicPlay('fight.mp3');
   console.log(`Game started with ${players.size} players`);
 }
 
@@ -1991,5 +1991,5 @@ if (gamepadMappings.length > 0) {
 setInterval(tick, TICK_MS);
 connectWled();
 connectExternal();
-initMusic();
+// initMusic();
 console.log(`LED Arch Game server running on http://localhost:${server.port}`);
