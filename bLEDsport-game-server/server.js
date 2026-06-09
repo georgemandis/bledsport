@@ -16,6 +16,7 @@ const CONFIG_SCHEMA = {
   // Movement
   dashDistance:      { default: 5,     min: 1, max: 20, step: 1, category: 'movement', live: true },
   dashRegenMs:      { default: 3000,  min: 500, max: 10000, step: 250, category: 'movement', live: true },
+  tickMs:           { default: 16,    min: 8, max: 100, step: 4, category: 'movement', live: false },
   momentumTicks:    { default: 0,     min: 0, max: 12, step: 1, category: 'movement', live: true },
   momentumIntervalMs:{ default: 60,   min: 16, max: 200, step: 4, category: 'movement', live: true },
 
@@ -208,7 +209,7 @@ function broadcastConfig() {
 
 // Keep non-configurable constants
 const NUM_LEDS = 192;
-const TICK_MS = 16; // ~60fps
+const TICK_MS = () => gameConfig.tickMs; // ~60fps by default
 const PORTAL_GLOW_SIZE = 3;
 const POWERUP_TYPES = ['blast'];
 
@@ -617,12 +618,20 @@ function getDelta(dir, pos) {
   if (zone.name === 'left') {
     if (dir === 'up') return 1;
     if (dir === 'down') return -1;
+    // Corner carry-over: just crossed in from top zone going right-to-left
+    if (dir === 'left' && pos === ZONES[0].end) return -1;
   } else if (zone.name === 'top') {
     if (dir === 'right') return 1;
     if (dir === 'left') return -1;
-  } else {
+    // Corner carry-over: just crossed in from left zone going left-to-right
+    if (dir === 'up' && pos === ZONES[1].start) return 1;
+    // Corner carry-over: just crossed in from right zone going right-to-left
+    if (dir === 'up' && pos === ZONES[1].end) return -1;
+  } else { // right zone
     if (dir === 'up') return -1;
     if (dir === 'down') return 1;
+    // Corner carry-over: just crossed in from top zone going left-to-right
+    if (dir === 'right' && pos === ZONES[2].start) return 1;
   }
   return 0;
 }
@@ -647,12 +656,6 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
   }
   return false;
 }
-
-// --- Hit a player (from wave or explosion) ---
-const DEATH_PHRASES = ['wasted', 'destroyed', 'eliminated', 'obliterated', 'annihilated', 'rekt', 'game over'];
-const EXPLOSION_PHRASES = ['kaboom', 'boom', 'ka-blam', 'explosive', 'bang', 'kablammo', 'boooom'];
-const BLAST_PHRASES = ['pew pew', 'bang bang', 'zap zap', 'pew pew pew', 'blam blam', 'zzzap'];
-const GOD_PHRASES = ['the hand of god', 'hand of god', 'divine intervention', 'wrath of god', 'judgment from above'];
 
 function hitPlayer(player, attackerId, now) {
   if (gamePhase !== 'playing') return; // game already ended
@@ -1880,7 +1883,7 @@ if (gamepadMappings.length > 0) {
     intervals[dir] = setInterval(() => {
       const pid = padPlayers.get(pad.index);
       if (pid) handleInput(pid, { type: 'move', dir, shift: false });
-    }, TICK_MS);
+    }, TICK_MS());
   }
 
   function stopDpadRepeat(pad, dir) {
@@ -1974,7 +1977,7 @@ if (gamepadMappings.length > 0) {
   }
 }
 
-setInterval(tick, TICK_MS);
+setInterval(tick, TICK_MS());
 connectWled();
 connectExternal();
 // initMusic();
