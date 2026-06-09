@@ -759,7 +759,9 @@ function handleInput(playerId, input) {
     for (const b of bombs) {
       if (b.exploding) continue;
       if (b.pos === player.pos) {
-        b.pos = wrapPos(b.pos + moveDir);
+        const nextPos = wrapPos(b.pos + moveDir);
+        const portal = checkPortalTeleport(nextPos, moveDir);
+        b.pos = portal ? portal.dest : nextPos;
       }
     }
 
@@ -1154,7 +1156,10 @@ function tick() {
         b.kickProgress = (b.kickProgress || 0) + gameConfig.bombKickSpeed;
         while (b.kickProgress >= 1) {
           b.kickProgress -= 1;
-          const newPos = wrapPos(b.pos + b.kickDir);
+          let newPos = wrapPos(b.pos + b.kickDir);
+          // Check portal teleport
+          const portal = checkPortalTeleport(newPos, b.kickDir);
+          if (portal) newPos = portal.dest;
           // Stop if it hits a wall
           if (isWallAt(newPos)) { b.kickDir = 0; break; }
           // Stop if it hits a player
