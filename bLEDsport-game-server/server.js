@@ -551,6 +551,31 @@ function isWallAt(pos) {
   return false;
 }
 
+function isStaticWallAt(pos) {
+  if (gameConfig.cornerWallsEnabled) {
+    for (const w of cornerWalls) {
+      if (w.currentSize === 0) continue;
+      const half = Math.floor(w.currentSize / 2);
+      if (pos >= w.pos - half && pos <= w.pos + half) return true;
+    }
+  }
+  if (gameConfig.randomWallsEnabled) {
+    for (const w of randomWalls) {
+      const half = Math.floor(w.size / 2);
+      if (pos >= w.pos - half && pos <= w.pos + half) return true;
+    }
+  }
+  return false;
+}
+
+function hasWallBetween(from, to) {
+  const dir = to > from ? 1 : -1;
+  for (let p = from + dir; p !== to; p += dir) {
+    if (isStaticWallAt(p)) return true;
+  }
+  return false;
+}
+
 function isSweeperAt(pos) {
   if (!gameConfig.sweeperEnabled) return false;
   const sStart = Math.floor(sweeper.pos);
@@ -1089,11 +1114,11 @@ function tick() {
   for (const b of bombs) {
     if (b.exploding) {
       b.explodeFrame++;
-      // Check explosion hits
+      // Check explosion hits (walls block the blast)
       const r = Math.round(b.explodeFrame * (gameConfig.bombExplodeRadius / gameConfig.bombExplodeFrames));
       for (const p of players.values()) {
         if (!p.alive) continue;
-        if (Math.abs(p.pos - b.pos) <= r) {
+        if (Math.abs(p.pos - b.pos) <= r && !hasWallBetween(b.pos, p.pos)) {
           hitPlayer(p, b.owner, now);
         }
       }
@@ -1273,13 +1298,16 @@ function tick() {
   // Bombs
   for (const b of bombs) {
     if (b.exploding) {
-      // Explosion: expanding white-red flash
+      // Explosion: expanding white-red flash (stops at walls)
       const r = Math.round(b.explodeFrame * (gameConfig.bombExplodeRadius / gameConfig.bombExplodeFrames));
       const fade = 1 - b.explodeFrame / gameConfig.bombExplodeFrames;
-      for (let d = -r; d <= r; d++) {
-        const led = b.pos + d;
-        if (led >= 0 && led < NUM_LEDS) {
-          const dist = Math.abs(d) / (r + 1);
+      // Expand in each direction, stopping when hitting a wall
+      for (const sign of [1, -1]) {
+        for (let d = 0; d <= r; d++) {
+          const led = b.pos + d * sign;
+          if (led < 0 || led >= NUM_LEDS) break;
+          if (d > 0 && isStaticWallAt(led)) break;
+          const dist = d / (r + 1);
           const bri = fade * (1 - dist * 0.5);
           pixels[led] = [Math.round(255 * bri), Math.round(100 * bri * fade), 0];
         }
