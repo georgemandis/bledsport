@@ -45,7 +45,7 @@ const CONFIG_SCHEMA = {
   portalsEnabled:   { default: true,  category: 'portals', live: true },
   portalsMoving:    { default: false, category: 'portals', live: true },
   portalMoveIntervalMs: { default: 15000, min: 5000, max: 60000, step: 1000, category: 'portals', live: true },
-  portalMomentum:   { default: 4,     min: 0, max: 12, step: 1, category: 'portals', live: true },
+  portalMomentum:   { default: 5,     min: 5, max: 12, step: 1, category: 'portals', live: true },
   portalsAnywhere:  { default: false, category: 'portals', live: true },
 
   // Walls
