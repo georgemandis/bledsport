@@ -7,7 +7,6 @@ const path = require('path');
 const CONFIG_SCHEMA = {
   // Game Rules (pre-match only)
   winsNeeded:       { default: 3,     min: 1, max: 10, step: 1, category: 'gameRules', live: false },
-  playerWidth:      { default: 1,     min: 1, max: 5,  step: 1, category: 'gameRules', live: false },
   respawnMs:        { default: 2000,  min: 500, max: 5000, step: 250, category: 'gameRules', live: false },
   randomSpawns:     { default: false, category: 'gameRules', live: false },
   spectatorInteraction: { default: true, category: 'gameRules', live: false },
@@ -251,56 +250,56 @@ const DEBUG = process.argv.includes('--debug');
 if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
 
 // --- Speech (espeak-ng, Pi only) ---
-const { execFile } = require('child_process');
-const HAS_ESPEAK = (() => {
-  try { require('child_process').execFileSync('which', ['espeak-ng']); return true; }
-  catch { return false; }
-})();
-if (HAS_ESPEAK) console.log('espeak-ng detected — audio enabled');
+// const { execFile } = require('child_process');
+// const HAS_ESPEAK = (() => {
+//   try { require('child_process').execFileSync('which', ['espeak-ng']); return true; }
+//   catch { return false; }
+// })();
+// if (HAS_ESPEAK) console.log('espeak-ng detected — audio enabled');
 
 
 
-function speak(text) {
-  if (!HAS_ESPEAK) return;
-  const pitch = 20 + Math.floor(Math.random() * 70);  // 20-90
-  const speed = 120 + Math.floor(Math.random() * 100); // 120-220 wpm
-  const variant = Math.floor(Math.random() * 5) + 1;
-  execFile('espeak-ng', [
-    '-p', String(pitch),
-    '-s', String(speed),
-    '-v', `en+m${variant}`,
-    text,
-  ], (err) => { if (err) {} }); // fire and forget
-}
+// function speak(text) {
+//   if (!HAS_ESPEAK) return;
+//   const pitch = 20 + Math.floor(Math.random() * 70);  // 20-90
+//   const speed = 120 + Math.floor(Math.random() * 100); // 120-220 wpm
+//   const variant = Math.floor(Math.random() * 5) + 1;
+//   execFile('espeak-ng', [
+//     '-p', String(pitch),
+//     '-s', String(speed),
+//     '-v', `en+m${variant}`,
+//     text,
+//   ], (err) => { if (err) {} }); // fire and forget
+// }
 
 // --- Music (mpg123) ---
-const { spawn: nodeSpawn } = require('child_process');
-let mpg123 = null;
-let hasMpg123 = false;
+// const { spawn: nodeSpawn } = require('child_process');
+// let mpg123 = null;
+// let hasMpg123 = false;
 
-function initMusic() {
-  try {
-    require('child_process').execFileSync('which', ['mpg123']);
-    hasMpg123 = true;
-    console.log('mpg123 found — music enabled');
-  } catch {
-    console.log('mpg123 not found — music disabled');
-  }
-}
+// function initMusic() {
+//   try {
+//     require('child_process').execFileSync('which', ['mpg123']);
+//     hasMpg123 = true;
+//     console.log('mpg123 found — music enabled');
+//   } catch {
+//     console.log('mpg123 not found — music disabled');
+//   }
+// }
 
-function musicPlay(file) {
-  if (!hasMpg123) return;
-  // musicStop();
-  const filePath = path.resolve(__dirname, 'assets', file);
-  console.log('Music path:', filePath);
-  mpg123 = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
-    stdio: ['ignore', 'ignore', 'pipe'],
-  });
-  mpg123.stderr.on('data', (d) => console.log('mpg123 stderr:', d.toString().trim()));
-  mpg123.on('error', (err) => { console.log('mpg123 error:', err.message); mpg123 = null; });
-  mpg123.on('exit', (code, signal) => { console.log('mpg123 exit:', code, signal); mpg123 = null; });
-  console.log('Music playing:', file, '(pid ' + mpg123.pid + ')');
-}
+// function musicPlay(file) {
+//   if (!hasMpg123) return;
+//   // musicStop();
+//   const filePath = path.resolve(__dirname, 'assets', file);
+//   console.log('Music path:', filePath);
+//   mpg123 = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
+//     stdio: ['ignore', 'ignore', 'pipe'],
+//   });
+//   mpg123.stderr.on('data', (d) => console.log('mpg123 stderr:', d.toString().trim()));
+//   mpg123.on('error', (err) => { console.log('mpg123 error:', err.message); mpg123 = null; });
+//   mpg123.on('exit', (code, signal) => { console.log('mpg123 exit:', code, signal); mpg123 = null; });
+//   console.log('Music playing:', file, '(pid ' + mpg123.pid + ')');
+// }
 
 // function musicStop() {
 //   if (!mpg123) return;
@@ -509,7 +508,7 @@ function createPlayer(id) {
     pos: spawnPos(),
     color: PLAYER_COLORS[colorIndex],
     colorIndex,
-    width: gameConfig.playerWidth,
+    width: 1,
     alive: true,
     respawnAt: 0,
     score: 0,
