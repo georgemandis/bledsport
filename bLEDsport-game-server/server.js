@@ -351,6 +351,15 @@ function sendToWled(pixels) {
     // else stays 0,0,0 (black) from Buffer.alloc
   }
 
+  // DEBUG: skip DDP send on first explosion frame to test if it prevents WLED crash
+  if (global._ddpDebugExplosion) {
+    const headerHex = buf.subarray(0, 10).toString('hex');
+    const totalNonZero = [...buf.subarray(10)].filter(b => b > 0).length;
+    console.log(`  [DDP] SKIPPED send — header=${headerHex} dataLen=${dataLen} bufLen=${buf.length} nonZeroDataBytes=${totalNonZero}`);
+    global._ddpDebugExplosion = false;
+    return; // skip this one frame
+  }
+
   ddpSocket.send(buf, WLED_DDP_PORT, WLED_HOST);
 }
 
@@ -1207,6 +1216,7 @@ function tick() {
       if (elapsed >= gameConfig.bombFuseMs) {
         b.exploding = true;
         b.explodeFrame = 0;
+        global._ddpDebugExplosion = true;
         console.log(`\n=== BOMB DETONATED ===`);
         console.log(`  bomb pos=${b.pos} owner=${b.owner}`);
         console.log(`  total bombs=${bombs.length}`);
