@@ -67,6 +67,9 @@ const CONFIG_SCHEMA = {
   powerupSpawnMinMs:    { default: 4000, min: 1000, max: 20000, step: 500, category: 'powerups', live: true },
   powerupSpawnMaxMs:    { default: 8000, min: 2000, max: 30000, step: 500, category: 'powerups', live: true },
   powerupMaxCount:      { default: 1,   min: 0, max: 5, step: 1, category: 'powerups', live: true },
+
+  // Display
+  ledBrightness:        { default: 255, min: 10, max: 255, step: 5, category: 'display', live: true },
 };
 
 // Build gameConfig from defaults
@@ -336,14 +339,15 @@ function sendToWled(pixels) {
   buf.writeUInt32BE(0, 4); // data offset (0 — single packet)
   buf.writeUInt16BE(dataLen, 8); // data length
 
-  // Fill RGB pixel data
+  // Fill RGB pixel data (scaled by brightness)
+  const bri = gameConfig.ledBrightness / 255;
   for (let i = 0; i < pixelCount; i++) {
     const off = 10 + i * 3;
     const c = pixels[i];
     if (c) {
-      buf[off]     = Math.max(0, Math.min(255, Math.round(c[0])));
-      buf[off + 1] = Math.max(0, Math.min(255, Math.round(c[1])));
-      buf[off + 2] = Math.max(0, Math.min(255, Math.round(c[2])));
+      buf[off]     = Math.max(0, Math.min(255, Math.round(c[0] * bri)));
+      buf[off + 1] = Math.max(0, Math.min(255, Math.round(c[1] * bri)));
+      buf[off + 2] = Math.max(0, Math.min(255, Math.round(c[2] * bri)));
     }
     // else stays 0,0,0 (black) from Buffer.alloc
   }

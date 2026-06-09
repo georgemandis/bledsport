@@ -45,5 +45,6 @@
   "dashThroughWalls": false,
   "powerupSpawnMinMs": 4000,
   "powerupSpawnMaxMs": 8000,
-  "powerupMaxCount": 1
+  "powerupMaxCount": 1,
+  "ledBrightness": 255
 }
