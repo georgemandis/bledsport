@@ -351,6 +351,9 @@ function sendToWled(pixels) {
     // else stays 0,0,0 (black) from Buffer.alloc
   }
 
+  // DEBUG: disable DDP entirely to test if WLED crash is from our packets
+  if (process.env.NO_DDP) return;
+
   ddpSocket.send(buf, WLED_DDP_PORT, WLED_HOST);
 }
 
