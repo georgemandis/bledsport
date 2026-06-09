@@ -250,63 +250,69 @@ const ZONES = [
 const DEBUG = process.argv.includes('--debug');
 if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
 
-// --- Speech (espeak-ng, Pi only) ---
-// const { execFile } = require('child_process');
-// const HAS_ESPEAK = (() => {
-//   try { require('child_process').execFileSync('which', ['espeak-ng']); return true; }
-//   catch { return false; }
-// })();
-// if (HAS_ESPEAK) console.log('espeak-ng detected — audio enabled');
+// --- Speech (cross-platform TTS) ---
+const { execFile, execFileSync, spawn: nodeSpawn } = require('child_process');
+const IS_MAC = process.platform === 'darwin';
 
+function detectTTS() {
+  try {
+    if (IS_MAC) return 'say'; // built-in on macOS
+    execFileSync('which', ['espeak-ng']);
+    return 'espeak-ng';
+  } catch { return null; }
+}
+const TTS_ENGINE = detectTTS();
+if (TTS_ENGINE) console.log(`TTS enabled (${TTS_ENGINE})`);
 
+function speak(text) {
+  if (!TTS_ENGINE) return;
+  if (TTS_ENGINE === 'say') {
+    const rate = 150 + Math.floor(Math.random() * 100); // 150-250 wpm
+    execFile('say', ['-r', String(rate), text], (err) => {});
+  } else {
+    const pitch = 20 + Math.floor(Math.random() * 70);
+    const speed = 120 + Math.floor(Math.random() * 100);
+    const variant = Math.floor(Math.random() * 5) + 1;
+    execFile('espeak-ng', [
+      '-p', String(pitch),
+      '-s', String(speed),
+      '-v', `en+m${variant}`,
+      text,
+    ], (err) => {});
+  }
+}
 
-// function speak(text) {
-//   if (!HAS_ESPEAK) return;
-//   const pitch = 20 + Math.floor(Math.random() * 70);  // 20-90
-//   const speed = 120 + Math.floor(Math.random() * 100); // 120-220 wpm
-//   const variant = Math.floor(Math.random() * 5) + 1;
-//   execFile('espeak-ng', [
-//     '-p', String(pitch),
-//     '-s', String(speed),
-//     '-v', `en+m${variant}`,
-//     text,
-//   ], (err) => { if (err) {} }); // fire and forget
-// }
+// --- Music (cross-platform) ---
+let musicProc = null;
 
-// --- Music (mpg123) ---
-// const { spawn: nodeSpawn } = require('child_process');
-// let mpg123 = null;
-// let hasMpg123 = false;
+function detectMusicPlayer() {
+  if (IS_MAC) return 'afplay'; // built-in on macOS
+  try { execFileSync('which', ['mpg123']); return 'mpg123'; }
+  catch { return null; }
+}
+const MUSIC_PLAYER = detectMusicPlayer();
+if (MUSIC_PLAYER) console.log(`Music enabled (${MUSIC_PLAYER})`);
 
-// function initMusic() {
-//   try {
-//     require('child_process').execFileSync('which', ['mpg123']);
-//     hasMpg123 = true;
-//     console.log('mpg123 found — music enabled');
-//   } catch {
-//     console.log('mpg123 not found — music disabled');
-//   }
-// }
+function musicPlay(file) {
+  if (!MUSIC_PLAYER) return;
+  musicStop();
+  const filePath = path.resolve(__dirname, 'assets', file);
+  if (MUSIC_PLAYER === 'afplay') {
+    musicProc = nodeSpawn('afplay', [filePath], { stdio: 'ignore' });
+  } else {
+    musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+  }
+  musicProc.on('error', (err) => { musicProc = null; });
+  musicProc.on('exit', () => { musicProc = null; });
+}
 
-// function musicPlay(file) {
-//   if (!hasMpg123) return;
-//   // musicStop();
-//   const filePath = path.resolve(__dirname, 'assets', file);
-//   console.log('Music path:', filePath);
-//   mpg123 = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
-//     stdio: ['ignore', 'ignore', 'pipe'],
-//   });
-//   mpg123.stderr.on('data', (d) => console.log('mpg123 stderr:', d.toString().trim()));
-//   mpg123.on('error', (err) => { console.log('mpg123 error:', err.message); mpg123 = null; });
-//   mpg123.on('exit', (code, signal) => { console.log('mpg123 exit:', code, signal); mpg123 = null; });
-//   console.log('Music playing:', file, '(pid ' + mpg123.pid + ')');
-// }
-
-// function musicStop() {
-//   if (!mpg123) return;
-//   mpg123.kill();
-//   mpg123 = null;
-// }
+function musicStop() {
+  if (!musicProc) return;
+  musicProc.kill();
+  musicProc = null;
+}
 
 // --- WLED connection (DDP over UDP) ---
 const WLED_HOST = '10.100.3.132';
@@ -418,7 +424,7 @@ function resetGame() {
   portalB.pos = NUM_LEDS - 1;
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
-  // musicStop();
+  musicStop();
   console.log('Game reset — waiting for players');
 }
 
@@ -457,7 +463,7 @@ function startGame() {
   portalB.pos = NUM_LEDS - 1;
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
-  // speak('fight');
+  speak('fight');
   // musicPlay('fight.mp3');
   console.log(`Game started with ${players.size} players`);
 }
@@ -667,12 +673,16 @@ function hitPlayer(player, attackerId, now) {
   const attacker = players.get(attackerId);
   if (attacker && attacker !== player) attacker.score++;
 
+  const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
+  speak(`${player.name}, ${phrase}`);
+
   // Check for winner
-  if (attacker && attacker.score >= gameConfig.winsNeeded) {
+  if (attacker && attacker !== player && attacker.score >= gameConfig.winsNeeded) {
     gamePhase = 'victory';
     victoryStart = now;
     victoryColor = attacker.color;
     victoryPlayerName = attacker.name;
+    speak(`${attacker.name} wins`);
     console.log(`${attacker.name} wins!`);
   }
 }
@@ -805,7 +815,7 @@ function handleInput(playerId, input) {
     if (available <= 0) return;
     waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: gameConfig.waveMaxRadius });
     player.blastLastUsed.push(now);
-    // speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
+    speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
   }
 
   if (input.type === 'shield') {
@@ -926,7 +936,7 @@ function tick() {
   // Idle timeout
   if (now - lastInputTime >= gameConfig.idleResetMs) {
     console.log('No input for 60s — resetting');
-    // speak('game over, no activity');
+    speak('game over, no activity');
     resetGame();
     return;
   }
@@ -1795,7 +1805,7 @@ const server = Bun.serve({
           clients.set(ws, id);
           ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
           console.log(`Player ${id} joined (${players.size} total)`);
-          // speak(`${player.name} has joined`);
+          speak(`${player.name} has joined`);
           startGame(); // restart round with all current players
           return;
         }
@@ -1820,7 +1830,7 @@ const server = Bun.serve({
             explodeFrame: 0,
             godBomb: true,
           });
-          // speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
+          speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
           return;
         }
         const id = clients.get(ws);
@@ -1911,7 +1921,7 @@ if (gamepadMappings.length > 0) {
           players.set(id, player);
           padPlayers.set(pad.index, id);
           console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
-          // speak(`${player.name} has joined`);
+          speak(`${player.name} has joined`);
           startGame(); // restart round with all current players
         }
         return;
@@ -1980,5 +1990,4 @@ if (gamepadMappings.length > 0) {
 setInterval(tick, TICK_MS());
 connectWled();
 connectExternal();
-// initMusic();
 console.log(`LED Arch Game server running on http://localhost:${server.port}`);
