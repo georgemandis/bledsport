@@ -3,462 +3,755 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LED Arch Game</title>
+<title>bLEDsport - Game Master</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #111;
-    color: #eee;
-    font-family: monospace;
+    background: #0a0a1a;
+    color: #ccc;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    height: 100vh;
+  }
+  .config-panel {
+    overflow-y: auto;
+    padding: 16px 20px;
+  }
+  .config-panel h1 {
+    font-size: 1.1rem;
+    color: #6f6;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+  .preset-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #111125;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+  .preset-bar-label {
+    color: #666;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-right: 4px;
+  }
+  .preset-btn {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    background: #1a1a2e;
+    color: #aaa;
+    border: 1px solid #333;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+  }
+  .preset-btn:hover { border-color: #666; color: #fff; }
+  .preset-btn.active { border-color: #4f4; color: #4f4; }
+  .preset-btn.action-save { border-color: #c90; color: #c90; }
+  .preset-btn.action-save:hover { background: #2a2000; }
+  .preset-btn.action-randomize { border-color: #f6c; color: #f6c; }
+  .preset-btn.action-randomize:hover { background: #2a0020; }
+  .preset-btn.action-reset { border-color: #888; color: #888; }
+  .preset-btn.action-reset:hover { background: #1a1a1a; }
+  .preset-delete {
+    font-size: 9px;
+    margin-left: 5px;
+    color: #a44;
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  .preset-delete:hover { color: #f66; }
+  .category {
+    border: 1px solid #222;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #111125;
+  }
+  .category-header h3 {
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #ddd;
+  }
+  .badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    font-weight: bold;
+  }
+  .badge-live { background: #0a2a0a; color: #4f4; border: 1px solid #2a4a2a; }
+  .badge-prematch { background: #2a0a0a; color: #f66; border: 1px solid #4a2a2a; }
+  .category-body { padding: 8px 12px; }
+  .control {
+    display: grid;
+    grid-template-columns: 140px 1fr 60px;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .control label {
+    font-size: 11px;
+    color: #999;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .control input[type="range"] {
+    width: 100%;
+    accent-color: #4f4;
+    background: transparent;
+  }
+  .control input[type="range"]:disabled { accent-color: #644; opacity: 0.5; }
+  .control .value {
+    font-size: 11px;
+    color: #6f6;
+    text-align: right;
+    font-weight: bold;
+  }
+  .control.disabled label { color: #555; }
+  .control.disabled .value { color: #644; }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+  }
+  .toggle-row label {
+    font-size: 11px;
+    color: #999;
+  }
+  .toggle-row.disabled label { color: #555; }
+  .toggle {
+    width: 36px;
+    height: 18px;
+    background: #333;
+    border-radius: 9px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: #2a6a2a; }
+  .toggle.disabled { opacity: 0.4; cursor: not-allowed; }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: #888;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: left 0.2s, background 0.2s;
+  }
+  .toggle.on::after { left: 20px; background: #6f6; }
+  .live-panel {
+    background: #0d0d20;
+    border-left: 1px solid #1a1a2e;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
+    padding: 12px;
   }
-  h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
-  .info { font-size: 0.85rem; color: #888; margin-bottom: 0.8rem; }
-  canvas { border-radius: 8px; }
-  .controls {
-    margin-top: 0.8rem;
-    font-size: 0.8rem;
+  .live-panel h2 {
+    font-size: 12px;
     color: #666;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
     text-align: center;
-    line-height: 1.6;
   }
-  .status { margin-top: 0.4rem; font-size: 0.75rem; color: #555; }
+  canvas {
+    width: 100%;
+    border-radius: 6px;
+    background: #050510;
+  }
+  .game-status {
+    text-align: center;
+    padding: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+    letter-spacing: 2px;
+    border-radius: 4px;
+  }
+  .game-status.waiting { color: #888; background: #111; }
+  .game-status.playing { color: #4f4; background: #0a1a0a; }
+  .game-status.victory { color: #ff0; background: #1a1a00; }
   .scoreboard {
-    margin-top: 0.6rem;
-    font-size: 0.85rem;
-    text-align: center;
-    min-height: 1.5em;
+    margin-top: 10px;
+    font-size: 11px;
   }
-  .score-entry { display: inline-block; margin: 0 10px; }
+  .scoreboard-entry {
+    display: flex;
+    align-items: center;
+    padding: 3px 0;
+    gap: 6px;
+  }
+  .color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .score-name { flex: 1; color: #aaa; }
+  .score-value { color: #6f6; font-weight: bold; }
+  .conn-status {
+    text-align: center;
+    font-size: 10px;
+    padding: 4px;
+    margin-top: auto;
+  }
 </style>
 </head>
 <body>
-<h1>LED Arch Game</h1>
-<div class="info">Blast other players off the arch!</div>
-<canvas id="arch"></canvas>
-<div class="controls">
-  <b>&uarr;&darr;&larr;&rarr;</b> move &nbsp;&nbsp;
-  <b>A</b> blast &nbsp;&nbsp;
-  <b>B</b> bomb &nbsp;&nbsp;
-  <b>X</b> shield &nbsp;&nbsp;
-  <b>Y</b> kick bomb &nbsp;&nbsp;
-  <b>C</b> cycle color
+<div class="layout">
+  <div class="config-panel">
+    <h1>bLEDsport CONFIG</h1>
+    <div class="preset-bar" id="preset-bar"></div>
+    <div id="categories"></div>
+  </div>
+  <div class="live-panel">
+    <h2>LIVE VIEW</h2>
+    <canvas id="arch" width="296" height="280"></canvas>
+    <div class="game-status waiting" id="game-status">WAITING</div>
+    <div class="scoreboard" id="scoreboard"></div>
+    <div class="conn-status" id="conn-status">Connecting...</div>
+  </div>
 </div>
-<div class="status" id="status">Connecting...</div>
-<div class="scoreboard" id="scoreboard"></div>
 
 <script>
 // ============================================================
-// CONFIG
+// STATE
 // ============================================================
 const NUM_LEDS = 192;
-const ZONES = [
-  { name: 'left',  start: 0,   end: 57  },
-  { name: 'top',   start: 58,  end: 134 },
-  { name: 'right', start: 135, end: 191 },
-];
+let config = {};
+let schema = {};
+let presets = [];
+let activePreset = null;
+let gamePhase = 'waiting';
+let debounceTimers = {};
 
-// ============================================================
-// CONNECTION TO GAME SERVER
-// ============================================================
-const conn = {
-  ws: null,
-  ready: false,
-  myId: null,
-  myColor: null,
-  reconnectTimer: null,
-
-  connect() {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.ws = new WebSocket(`${proto}//${location.host}/ws`);
-    document.getElementById('status').textContent = 'Connecting...';
-
-    this.ws.onopen = () => {
-      this.ready = true;
-      document.getElementById('status').textContent = 'Spectating';
-      document.getElementById('status').style.color = '#4a4';
-    };
-
-    this.ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'reset') {
-        document.getElementById('status').textContent = 'Game reset';
-        document.getElementById('status').style.color = '#4a4';
-      }
-      if (msg.type === 'state') {
-        gameState.players = msg.players;
-        gameState.waves = msg.waves;
-        gameState.powerups = msg.powerups || [];
-        gameState.bombs = msg.bombs || [];
-        gameState.fires = msg.fires || [];
-        gameState.animTime = msg.animTime;
-        gameState.gamePhase = msg.gamePhase;
-        gameState.victoryColor = msg.victoryColor;
-        gameState.victoryPlayerName = msg.victoryPlayerName;
-        if (msg.gamePhase === 'playing') {
-        }
-        renderer.draw();
-      }
-    };
-
-    this.ws.onclose = () => {
-      this.ready = false;
-      this.myId = null;
-      document.getElementById('status').textContent = 'Disconnected — reconnecting...';
-      document.getElementById('status').style.color = '#a84';
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = setTimeout(() => this.connect(), 1000);
-    };
-
-    this.ws.onerror = () => { this.ws.close(); };
-  },
-
-  send(msg) {
-    if (this.ws && this.ready) this.ws.send(JSON.stringify(msg));
-  }
+const CATEGORY_NAMES = {
+  gameRules: 'GAME RULES',
+  movement: 'MOVEMENT',
+  bombs: 'BOMBS',
+  shield: 'SHIELD',
+  pewPew: 'PEW-PEW',
+  portals: 'PORTALS',
+  walls: 'WALLS',
+  powerups: 'POWERUPS',
 };
+const CATEGORY_ORDER = ['gameRules','movement','bombs','shield','pewPew','portals','walls','powerups'];
 
-// ============================================================
-// GAME STATE (received from server)
-// ============================================================
 const gameState = {
-  players: [],
-  waves: [],
-  powerups: [],
-  bombs: [],
-  fires: [],
-  animTime: 0,
-  gamePhase: 'waiting',
-  victoryColor: null,
-  victoryPlayerName: '',
+  players: [], waves: [], powerups: [], bombs: [], fires: [],
+  animTime: 0, gamePhase: 'waiting',
+  victoryColor: null, victoryPlayerName: '',
+  cornerWalls: [], randomWalls: [], sweeper: null,
+  portalA: 0, portalB: NUM_LEDS - 1, portalBlinking: false,
 };
 
 // ============================================================
-// RENDERER
+// WEBSOCKET
+// ============================================================
+let ws = null;
+let reconnectTimer = null;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  setStatus('Connecting...', '#888');
+
+  ws.onopen = () => setStatus('Connected', '#4a4');
+  ws.onclose = () => {
+    setStatus('Disconnected', '#a84');
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1000);
+  };
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'config_state') {
+      config = msg.config;
+      schema = msg.schema;
+      presets = msg.presets || [];
+      activePreset = msg.activePreset || null;
+      buildCategories();
+      buildPresetBar();
+      syncControls();
+    }
+    if (msg.type === 'state') {
+      gameState.players = msg.players || [];
+      gameState.waves = msg.waves || [];
+      gameState.powerups = msg.powerups || [];
+      gameState.bombs = msg.bombs || [];
+      gameState.fires = msg.fires || [];
+      gameState.animTime = msg.animTime || 0;
+      gameState.gamePhase = msg.gamePhase || 'waiting';
+      gameState.victoryColor = msg.victoryColor || null;
+      gameState.victoryPlayerName = msg.victoryPlayerName || '';
+      gameState.cornerWalls = msg.cornerWalls || [];
+      gameState.randomWalls = msg.randomWalls || [];
+      gameState.sweeper = msg.sweeper || null;
+      gameState.portalA = msg.portalA != null ? msg.portalA : 0;
+      gameState.portalB = msg.portalB != null ? msg.portalB : NUM_LEDS - 1;
+      gameState.portalBlinking = msg.portalBlinking || false;
+      gamePhase = gameState.gamePhase;
+      updateLockState();
+      drawCanvas();
+      updateScoreboard();
+      updateGameStatus();
+    }
+  };
+}
+
+function send(msg) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+}
+
+function setStatus(text, color) {
+  const el = document.getElementById('conn-status');
+  el.textContent = text;
+  el.style.color = color;
+}
+
+// ============================================================
+// PRESET BAR
+// ============================================================
+function buildPresetBar() {
+  const bar = document.getElementById('preset-bar');
+  bar.innerHTML = '<span class="preset-bar-label">Presets</span>';
+  for (const name of presets) {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (name === activePreset ? ' active' : '');
+    btn.textContent = name;
+    btn.onclick = () => send({ type: 'load_preset', name });
+    if (name !== 'classic') {
+      const del = document.createElement('span');
+      del.className = 'preset-delete';
+      del.textContent = '\u2715';
+      del.onclick = (e) => { e.stopPropagation(); send({ type: 'delete_preset', name }); };
+      btn.appendChild(del);
+    }
+    bar.appendChild(btn);
+  }
+  // Action buttons
+  const actions = [
+    { label: 'Randomize', cls: 'action-randomize', fn: () => send({ type: 'randomize' }) },
+    { label: 'Save Preset', cls: 'action-save', fn: () => {
+      const name = prompt('Preset name (alphanumeric, dashes, underscores):');
+      if (name) send({ type: 'save_preset', name });
+    }},
+    { label: 'Reset', cls: 'action-reset', fn: () => send({ type: 'reset_presets' }) },
+  ];
+  for (const a of actions) {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn ' + a.cls;
+    btn.textContent = a.label;
+    btn.onclick = a.fn;
+    bar.appendChild(btn);
+  }
+}
+
+// ============================================================
+// DYNAMIC CONTROLS
+// ============================================================
+let categoriesBuilt = false;
+
+function buildCategories() {
+  if (categoriesBuilt) return; // only build DOM once
+  categoriesBuilt = true;
+  const container = document.getElementById('categories');
+  container.innerHTML = '';
+
+  // Group keys by category
+  const groups = {};
+  for (const key of Object.keys(schema)) {
+    const cat = schema[key].category;
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(key);
+  }
+
+  for (const cat of CATEGORY_ORDER) {
+    const keys = groups[cat];
+    if (!keys) continue;
+    const isLive = keys.some(k => schema[k].live);
+    const div = document.createElement('div');
+    div.className = 'category';
+    div.innerHTML = `
+      <div class="category-header">
+        <h3>${CATEGORY_NAMES[cat] || cat}</h3>
+        <span class="badge ${isLive ? 'badge-live' : 'badge-prematch'}">${isLive ? 'LIVE' : 'PRE-MATCH'}</span>
+      </div>
+      <div class="category-body" id="cat-${cat}"></div>`;
+    container.appendChild(div);
+
+    const body = div.querySelector('.category-body');
+    for (const key of keys) {
+      const s = schema[key];
+      if (typeof s.default === 'boolean') {
+        buildToggle(body, key, s);
+      } else {
+        buildSlider(body, key, s);
+      }
+    }
+  }
+}
+
+function formatLabel(key) {
+  return key.replace(/([A-Z])/g, ' $1').replace(/Ms$/, ' (ms)').replace(/^./, c => c.toUpperCase());
+}
+
+function buildSlider(parent, key, s) {
+  const row = document.createElement('div');
+  row.className = 'control';
+  row.dataset.key = key;
+  const val = config[key] != null ? config[key] : s.default;
+  row.innerHTML = `
+    <label title="${key}">${formatLabel(key)}</label>
+    <input type="range" data-key="${key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${val}">
+    <span class="value" data-key="${key}">${val}</span>`;
+  parent.appendChild(row);
+
+  const input = row.querySelector('input');
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    row.querySelector('.value').textContent = v;
+    debouncedSend(key, s.category, v);
+  });
+}
+
+function buildToggle(parent, key, s) {
+  const row = document.createElement('div');
+  row.className = 'toggle-row';
+  row.dataset.key = key;
+  const val = config[key] != null ? config[key] : s.default;
+  row.innerHTML = `
+    <label title="${key}">${formatLabel(key)}</label>
+    <div class="toggle${val ? ' on' : ''}" data-key="${key}"></div>`;
+  parent.appendChild(row);
+
+  const toggle = row.querySelector('.toggle');
+  toggle.addEventListener('click', () => {
+    if (toggle.classList.contains('disabled')) return;
+    const newVal = !toggle.classList.contains('on');
+    toggle.classList.toggle('on', newVal);
+    send({ type: 'config_update', category: s.category, key, value: newVal });
+  });
+}
+
+function debouncedSend(key, category, value) {
+  clearTimeout(debounceTimers[key]);
+  debounceTimers[key] = setTimeout(() => {
+    send({ type: 'config_update', category, key, value });
+  }, 100);
+}
+
+function syncControls() {
+  for (const key of Object.keys(config)) {
+    const val = config[key];
+    if (typeof val === 'boolean') {
+      const toggle = document.querySelector(`.toggle[data-key="${key}"]`);
+      if (toggle) toggle.classList.toggle('on', val);
+    } else {
+      const input = document.querySelector(`input[data-key="${key}"]`);
+      if (input) input.value = val;
+      const span = document.querySelector(`span.value[data-key="${key}"]`);
+      if (span) span.textContent = val;
+    }
+  }
+}
+
+function updateLockState() {
+  const locked = gamePhase !== 'waiting';
+  for (const key of Object.keys(schema)) {
+    if (schema[key].live) continue; // live controls always enabled
+    const s = schema[key];
+    if (typeof s.default === 'boolean') {
+      const row = document.querySelector(`.toggle-row[data-key="${key}"]`);
+      const toggle = document.querySelector(`.toggle[data-key="${key}"]`);
+      if (row) row.classList.toggle('disabled', locked);
+      if (toggle) toggle.classList.toggle('disabled', locked);
+    } else {
+      const row = document.querySelector(`.control[data-key="${key}"]`);
+      const input = document.querySelector(`input[data-key="${key}"]`);
+      if (row) row.classList.toggle('disabled', locked);
+      if (input) input.disabled = locked;
+    }
+  }
+}
+
+// ============================================================
+// CANVAS RENDERING
 // ============================================================
 const canvas = document.getElementById('arch');
 const ctx = canvas.getContext('2d');
+let ledPositions = [];
 
-const renderer = {
-  ledPositions: [],
-
-  // Zone boundaries (0-indexed)
-  LEFT_END: 57,   // LEDs 0-57: left side (vertical, going up)
-  TOP_START: 58,   // LEDs 58-134: top (horizontal)
-  TOP_END: 134,
-  RIGHT_START: 135, // LEDs 135-191: right side (vertical, going down)
-
-  computeLayout() {
-    const w = Math.min(window.innerWidth - 40, 800);
-    const h = Math.min(window.innerHeight - 200, 500);
-    canvas.width = w;
-    canvas.height = h;
-    const pad = 40;
-    const leftX = pad;
-    const rightX = w - pad;
-    const topY = pad;
-    const bottomY = h - pad / 2;
-
-    const leftCount = this.LEFT_END + 1;          // 58
-    const topCount = this.TOP_END - this.TOP_START + 1; // 77
-    const rightCount = NUM_LEDS - this.RIGHT_START;     // 57
-
-    this.ledPositions = [];
-    for (let i = 0; i < NUM_LEDS; i++) {
-      let x, y;
-      if (i <= this.LEFT_END) {
-        // Left side: bottom to top
-        const t = i / (leftCount - 1);
-        x = leftX;
-        y = bottomY - t * (bottomY - topY);
-      } else if (i <= this.TOP_END) {
-        // Top: left to right
-        const t = (i - this.TOP_START) / (topCount - 1);
-        x = leftX + t * (rightX - leftX);
-        y = topY;
-      } else {
-        // Right side: top to bottom
-        const t = (i - this.RIGHT_START) / (rightCount - 1);
-        x = rightX;
-        y = topY + t * (bottomY - topY);
-      }
-      this.ledPositions.push({ x, y });
-    }
-  },
-
-  draw() {
-    const pixels = new Array(NUM_LEDS).fill(null);
-    const t = gameState.animTime;
-
-    // Portal glow
-    const PORTAL_GLOW = 3;
-    const portalPulse = 0.3 + 0.3 * Math.sin(t * 4);
-    const portalSwirl = 0.15 * Math.sin(t * 7);
-    for (let d = 0; d < PORTAL_GLOW; d++) {
-      const fade = (1 - d / PORTAL_GLOW) * portalPulse;
-      const s2 = portalSwirl * (1 - d / PORTAL_GLOW);
-      pixels[d] = [Math.round(255*(fade+s2)), Math.round(140*(fade+s2)), Math.round(20*fade)];
-      pixels[NUM_LEDS-1-d] = [Math.round(20*fade), Math.round(100*(fade+s2)), Math.round(255*(fade+s2))];
-    }
-
-    // Power-ups: rainbow shimmer
-    for (const pu of gameState.powerups) {
-      const hue = (t * 2 + pu.pos * 0.02) % 1;
-      const shimmer = 0.6 + 0.4 * Math.sin(t * 5 + pu.pos * 0.5);
-      const [r, g, b] = hslToRgb(hue, 1, 0.4 * shimmer);
-      pixels[pu.pos] = [r, g, b];
-      for (let d = 1; d <= 1; d++) {
-        const h2 = (hue + d * 0.15) % 1;
-        const [r2, g2, b2] = hslToRgb(h2, 1, 0.15 * shimmer);
-        if (pu.pos - d >= 0) pixels[pu.pos - d] = [r2, g2, b2];
-        if (pu.pos + d < NUM_LEDS) pixels[pu.pos + d] = [r2, g2, b2];
-      }
-    }
-
-    // Bombs
-    for (const b of gameState.bombs) {
-      if (b.exploding) {
-        const maxR = 8;
-        const maxF = 10;
-        const r = Math.round(b.explodeFrame * (maxR / maxF));
-        const fade = 1 - b.explodeFrame / maxF;
-        for (let d = -r; d <= r; d++) {
-          const led = b.pos + d;
-          if (led >= 0 && led < NUM_LEDS) {
-            const dist = Math.abs(d) / (r + 1);
-            const bri = fade * (1 - dist * 0.5);
-            pixels[led] = [Math.round(255 * bri), Math.round(100 * bri * fade), 0];
-          }
-        }
-      } else {
-        const half = Math.floor(b.width / 2);
-        const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 10));
-        for (let d = -half; d <= half; d++) {
-          const led = b.pos + d;
-          if (led >= 0 && led < NUM_LEDS) {
-            const edge = 1 - Math.abs(d) / (half + 1) * 0.5;
-            pixels[led] = [Math.round(220 * pulse * edge), 0, 0];
-          }
-        }
-      }
-    }
-
-    // Fires (Hand of God)
-    for (const f of gameState.fires) {
-      const fadeOut = 1 - f.age * 0.5;
-      const flicker = 0.6 + 0.4 * Math.sin(t * 15 + f.pos * 3);
-      const bri = fadeOut * flicker;
-      if (f.pos >= 0 && f.pos < NUM_LEDS) {
-        pixels[f.pos] = [Math.round(255 * bri), Math.round(80 * bri), 0];
-      }
-    }
-
-    // Waves
-    for (const w of gameState.waves) {
-      const r = Math.round(w.radius);
-      const owner = gameState.players.find(p => p.id === w.owner);
-      const wColor = owner ? owner.color : [255, 255, 255];
-      const hue = (t * 3) % 1;
-      const [hr, hg, hb] = hslToRgb(hue, 1, 0.5);
-      const mix = (a, b) => Math.round(a * 0.5 + b * 0.5);
-      const c = [mix(hr, wColor[0]), mix(hg, wColor[1]), mix(hb, wColor[2])];
-      const p1 = w.center + r;
-      const p2 = w.center - r;
-      if (p1 >= 0 && p1 < NUM_LEDS) pixels[p1] = c;
-      if (p2 >= 0 && p2 < NUM_LEDS) pixels[p2] = c;
-    }
-
-    // Players
-    for (const p of gameState.players) {
-      if (!p.alive) {
-        const flash = Math.sin(t * 10) > 0;
-        if (flash && p.pos >= 0 && p.pos < NUM_LEDS) pixels[p.pos] = [80, 0, 0];
-        continue;
-      }
-      // Shield glow
-      if (p.shieldActive) {
-        for (let d = -1; d <= 1; d++) {
-          const led = p.pos + d;
-          if (led >= 0 && led < NUM_LEDS && d !== 0) {
-            const shimmer = 0.5 + 0.5 * Math.sin(t * 6 + d);
-            pixels[led] = [Math.round(200 * shimmer), Math.round(220 * shimmer), Math.round(255 * shimmer)];
-          }
-        }
-      }
-      const recharging = !p.hasDash;
-      const pulse = recharging ? 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 8)) : 1;
-      pixels[p.pos] = [
-        Math.round(p.color[0] * pulse),
-        Math.round(p.color[1] * pulse),
-        Math.round(p.color[2] * pulse),
-      ];
-    }
-
-    // Canvas render
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const dotR = Math.max(3, Math.min(6, canvas.width / NUM_LEDS * 0.8));
-
-    // Background
-    for (let i = 0; i < NUM_LEDS; i++) {
-      const { x, y } = this.ledPositions[i];
-      ctx.beginPath();
-      ctx.arc(x, y, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.06)';
-      ctx.fill();
-    }
-
-    // Lit pixels
-    for (let i = 0; i < NUM_LEDS; i++) {
-      const c = pixels[i];
-      if (!c) continue;
-      const { x, y } = this.ledPositions[i];
-      const [cr, cg, cb] = c;
-      const brightness = Math.max(cr, cg, cb) / 255;
-
-      const glow = dotR * (1 + brightness * 2);
-      const grad = ctx.createRadialGradient(x, y, 0, x, y, glow);
-      grad.addColorStop(0, `rgba(${cr},${cg},${cb},${brightness * 0.5})`);
-      grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
-      ctx.beginPath();
-      ctx.arc(x, y, glow, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(x, y, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
-      ctx.fill();
-    }
-
-    // Phase-specific HUD
-    if (gameState.gamePhase === 'victory' && gameState.victoryColor) {
-      const [vr, vg, vb] = gameState.victoryColor;
-      ctx.fillStyle = `rgb(${vr},${vg},${vb})`;
-      ctx.font = 'bold 28px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${gameState.victoryPlayerName} WINS!`, canvas.width / 2, canvas.height / 2);
-    } else if (gameState.gamePhase === 'waiting') {
-      ctx.fillStyle = '#888';
-      ctx.font = 'bold 18px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('Press Start to join', canvas.width / 2, canvas.height / 2 - 10);
-      ctx.font = '13px monospace';
-      ctx.fillText(`${gameState.players.length} player(s) waiting`, canvas.width / 2, canvas.height / 2 + 15);
+function computeLayout() {
+  const w = canvas.clientWidth * (window.devicePixelRatio || 1);
+  const h = Math.round(w * 0.85);
+  canvas.width = w;
+  canvas.height = h;
+  const pad = w * 0.08;
+  const leftX = pad;
+  const rightX = w - pad;
+  const topY = pad;
+  const bottomY = h - pad * 0.4;
+  const LEFT_END = 57, TOP_START = 58, TOP_END = 134, RIGHT_START = 135;
+  const leftCount = LEFT_END + 1;
+  const topCount = TOP_END - TOP_START + 1;
+  const rightCount = NUM_LEDS - RIGHT_START;
+  ledPositions = [];
+  for (let i = 0; i < NUM_LEDS; i++) {
+    let x, y;
+    if (i <= LEFT_END) {
+      const t = i / (leftCount - 1);
+      x = leftX; y = bottomY - t * (bottomY - topY);
+    } else if (i <= TOP_END) {
+      const t = (i - TOP_START) / (topCount - 1);
+      x = leftX + t * (rightX - leftX); y = topY;
     } else {
-      // Playing HUD
-      const me = gameState.players.find(p => p.id === conn.myId);
-      if (me) {
-        const zone = ZONES.find(z => me.pos >= z.start && me.pos <= z.end) || ZONES[0];
-        const zoneLabel = zone.name === 'left' ? 'LEFT [updown]' : zone.name === 'top' ? 'TOP [leftright]' : 'RIGHT [updown]';
+      const t = (i - RIGHT_START) / (rightCount - 1);
+      x = rightX; y = topY + t * (bottomY - topY);
+    }
+    ledPositions.push({ x, y });
+  }
+}
 
-        ctx.fillStyle = `rgb(${me.color.join(',')})`;
-        ctx.font = 'bold 24px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`#${me.pos + 1}`, canvas.width / 2, canvas.height / 2 - 10);
-        ctx.fillStyle = '#888';
-        ctx.font = '12px monospace';
-        ctx.fillText(zoneLabel, canvas.width / 2, canvas.height / 2 + 8);
+function drawCanvas() {
+  const t = gameState.animTime;
+  const pixels = new Array(NUM_LEDS).fill(null);
 
-        // Status indicators
-        ctx.font = '13px monospace';
-        ctx.textAlign = 'center';
-        const y0 = canvas.height / 2 + 30;
-        // Blast
-        const blastLabel = `[A] blast ${me.blastCharges}/${me.blastMax}`;
-        ctx.fillStyle = me.blastCharges > 0 ? '#ff0' : '#633';
-        ctx.fillText(blastLabel, canvas.width / 2 - 80, y0);
-        // Bomb
-        const bombLabel = me.bombReady ? '[B] bomb' : '[B] bomb...';
-        ctx.fillStyle = me.bombReady ? '#f80' : '#633';
-        ctx.fillText(bombLabel, canvas.width / 2, y0);
-        // Shield
-        const shieldLabel = me.shieldActive ? '[X] SHIELD!' : me.shieldReady ? '[X] shield' : '[X] shield...';
-        ctx.fillStyle = me.shieldActive ? '#fff' : me.shieldReady ? '#adf' : '#633';
-        ctx.fillText(shieldLabel, canvas.width / 2 + 80, y0);
+  // Portal glow (dynamic positions)
+  const PORTAL_GLOW = 3;
+  const pA = gameState.portalA;
+  const pB = gameState.portalB;
+  const portalPulse = gameState.portalBlinking
+    ? (Math.sin(t * 15) > 0 ? 0.6 : 0.1)
+    : 0.3 + 0.3 * Math.sin(t * 4);
+  const portalSwirl = 0.15 * Math.sin(t * 7);
+  for (let d = 0; d < PORTAL_GLOW; d++) {
+    const fade = (1 - d / PORTAL_GLOW) * portalPulse;
+    const s2 = portalSwirl * (1 - d / PORTAL_GLOW);
+    // Portal A (orange)
+    const aDir = pA === 0 ? 1 : -1;
+    const aLed = pA + d * aDir;
+    if (aLed >= 0 && aLed < NUM_LEDS)
+      pixels[aLed] = [Math.round(255*(fade+s2)), Math.round(140*(fade+s2)), Math.round(20*fade)];
+    // Portal B (blue)
+    const bDir = pB === NUM_LEDS - 1 ? -1 : 1;
+    const bLed = pB + d * bDir;
+    if (bLed >= 0 && bLed < NUM_LEDS)
+      pixels[bLed] = [Math.round(20*fade), Math.round(100*(fade+s2)), Math.round(255*(fade+s2))];
+  }
 
-        if (!me.alive) {
-          ctx.fillStyle = '#f44';
-          ctx.font = 'bold 18px monospace';
-          ctx.fillText('DESTROYED — respawning...', canvas.width / 2, canvas.height / 2 + 55);
+  // Walls (orange)
+  for (const w of gameState.cornerWalls) {
+    if (!w.size) continue;
+    for (let d = 0; d < w.size; d++) {
+      for (const dir of [-1, 1]) {
+        const led = w.pos + d * dir;
+        if (led >= 0 && led < NUM_LEDS) pixels[led] = [200, 120, 0];
+      }
+    }
+  }
+  for (const w of gameState.randomWalls) {
+    const half = Math.floor(w.size / 2);
+    for (let d = -half; d <= half; d++) {
+      const led = w.pos + d;
+      if (led >= 0 && led < NUM_LEDS) pixels[led] = [200, 120, 0];
+    }
+  }
+
+  // Sweeper
+  if (gameState.sweeper) {
+    const sw = gameState.sweeper;
+    const half = Math.floor(sw.size / 2);
+    const clr = sw.lethal ? [220, 40, 40] : [120, 120, 120];
+    for (let d = -half; d <= half; d++) {
+      const led = sw.pos + d;
+      if (led >= 0 && led < NUM_LEDS) pixels[led] = clr;
+    }
+  }
+
+  // Powerups: rainbow shimmer
+  for (const pu of gameState.powerups) {
+    const hue = (t * 2 + pu.pos * 0.02) % 1;
+    const shimmer = 0.6 + 0.4 * Math.sin(t * 5 + pu.pos * 0.5);
+    const [r, g, b] = hslToRgb(hue, 1, 0.4 * shimmer);
+    pixels[pu.pos] = [r, g, b];
+    for (let d2 = 1; d2 <= 1; d2++) {
+      const h2 = (hue + d2 * 0.15) % 1;
+      const [r2, g2, b2] = hslToRgb(h2, 1, 0.15 * shimmer);
+      if (pu.pos - d2 >= 0) pixels[pu.pos - d2] = [r2, g2, b2];
+      if (pu.pos + d2 < NUM_LEDS) pixels[pu.pos + d2] = [r2, g2, b2];
+    }
+  }
+
+  // Bombs
+  for (const b of gameState.bombs) {
+    if (b.exploding) {
+      const maxR = 8, maxF = 10;
+      const r = Math.round(b.explodeFrame * (maxR / maxF));
+      const fade = 1 - b.explodeFrame / maxF;
+      for (let d = -r; d <= r; d++) {
+        const led = b.pos + d;
+        if (led >= 0 && led < NUM_LEDS) {
+          const dist = Math.abs(d) / (r + 1);
+          const bri = fade * (1 - dist * 0.5);
+          pixels[led] = [Math.round(255 * bri), Math.round(100 * bri * fade), 0];
+        }
+      }
+    } else {
+      const half = Math.floor(b.width / 2);
+      const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 10));
+      for (let d = -half; d <= half; d++) {
+        const led = b.pos + d;
+        if (led >= 0 && led < NUM_LEDS) {
+          const edge = 1 - Math.abs(d) / (half + 1) * 0.5;
+          pixels[led] = [Math.round(220 * pulse * edge), 0, 0];
         }
       }
     }
+  }
 
-    // Tick marks
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    for (let i = 0; i < NUM_LEDS; i += 10) {
-      const { x, y } = this.ledPositions[i];
-      ctx.fillStyle = '#333';
-      ctx.fillText(i + 1, x, y + dotR + 12);
+  // Fires
+  for (const f of gameState.fires) {
+    const fadeOut = 1 - f.age * 0.5;
+    const flicker = 0.6 + 0.4 * Math.sin(t * 15 + f.pos * 3);
+    const bri = Math.max(0, fadeOut * flicker);
+    if (f.pos >= 0 && f.pos < NUM_LEDS)
+      pixels[f.pos] = [Math.round(255 * bri), Math.round(80 * bri), 0];
+  }
+
+  // Waves
+  for (const w of gameState.waves) {
+    const r = Math.round(w.radius);
+    const owner = gameState.players.find(p => p.id === w.owner);
+    const wColor = owner ? owner.color : [255, 255, 255];
+    const hue = (t * 3) % 1;
+    const [hr, hg, hb] = hslToRgb(hue, 1, 0.5);
+    const mix = (a, b2) => Math.round(a * 0.5 + b2 * 0.5);
+    const c = [mix(hr, wColor[0]), mix(hg, wColor[1]), mix(hb, wColor[2])];
+    const p1 = w.center + r;
+    const p2 = w.center - r;
+    if (p1 >= 0 && p1 < NUM_LEDS) pixels[p1] = c;
+    if (p2 >= 0 && p2 < NUM_LEDS) pixels[p2] = c;
+  }
+
+  // Players
+  for (const p of gameState.players) {
+    if (!p.alive) {
+      if (Math.sin(t * 10) > 0 && p.pos >= 0 && p.pos < NUM_LEDS) pixels[p.pos] = [80, 0, 0];
+      continue;
     }
-
-    // Scoreboard
-    const sb = document.getElementById('scoreboard');
-    sb.innerHTML = gameState.players
-      .sort((a, b) => b.score - a.score)
-      .map(p => {
-        const isMe = p.id === conn.myId;
-        const style = `color:rgb(${p.color.join(',')});${isMe ? 'font-weight:bold;' : ''}`;
-        const dead = p.alive ? '' : ' [dead]';
-        return `<span class="score-entry" style="${style}">${p.name}: ${p.score}${dead}</span>`;
-      })
-      .join('');
+    if (p.shieldActive) {
+      for (let d = -1; d <= 1; d++) {
+        const led = p.pos + d;
+        if (led >= 0 && led < NUM_LEDS && d !== 0) {
+          const shimmer = 0.5 + 0.5 * Math.sin(t * 6 + d);
+          pixels[led] = [Math.round(200*shimmer), Math.round(220*shimmer), Math.round(255*shimmer)];
+        }
+      }
+    }
+    const recharging = !p.hasDash;
+    const pulse = recharging ? 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 8)) : 1;
+    pixels[p.pos] = [
+      Math.round(p.color[0] * pulse),
+      Math.round(p.color[1] * pulse),
+      Math.round(p.color[2] * pulse),
+    ];
   }
-};
 
-// ============================================================
-// INPUT
-// ============================================================
-// Key repeat tracking
-const heldDirs = new Set();
-const dirRepeatIntervals = {};
-const REPEAT_MS = 80;
+  // Render to canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const dotR = Math.max(2, Math.min(4, canvas.width / NUM_LEDS * 0.7));
 
-function startDirRepeat(dir) {
-  if (heldDirs.has(dir)) return;
-  heldDirs.add(dir);
-  conn.send({ type: 'move', dir, shift: false });
-  dirRepeatIntervals[dir] = setInterval(() => {
-    conn.send({ type: 'move', dir, shift: false });
-  }, REPEAT_MS);
+  // Background dots
+  for (let i = 0; i < NUM_LEDS; i++) {
+    const { x, y } = ledPositions[i];
+    ctx.beginPath();
+    ctx.arc(x, y, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fill();
+  }
+
+  // Lit pixels with glow
+  for (let i = 0; i < NUM_LEDS; i++) {
+    const c = pixels[i];
+    if (!c) continue;
+    const { x, y } = ledPositions[i];
+    const [cr, cg, cb] = c;
+    const brightness = Math.max(cr, cg, cb) / 255;
+    const glow = dotR * (1 + brightness * 2);
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, glow);
+    grad.addColorStop(0, `rgba(${cr},${cg},${cb},${brightness * 0.5})`);
+    grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+    ctx.beginPath();
+    ctx.arc(x, y, glow, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.fill();
+  }
+
+  // Phase overlays
+  if (gameState.gamePhase === 'victory' && gameState.victoryColor) {
+    const [vr, vg, vb] = gameState.victoryColor;
+    ctx.fillStyle = `rgb(${vr},${vg},${vb})`;
+    ctx.font = `bold ${Math.round(canvas.width * 0.06)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${gameState.victoryPlayerName} WINS!`, canvas.width / 2, canvas.height / 2);
+  } else if (gameState.gamePhase === 'waiting') {
+    ctx.fillStyle = '#666';
+    ctx.font = `bold ${Math.round(canvas.width * 0.04)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('Waiting for players', canvas.width / 2, canvas.height / 2 - 6);
+    ctx.font = `${Math.round(canvas.width * 0.03)}px monospace`;
+    ctx.fillText(`${gameState.players.length} player(s)`, canvas.width / 2, canvas.height / 2 + 14);
+  }
 }
 
-function stopDirRepeat(dir) {
-  heldDirs.delete(dir);
-  if (dirRepeatIntervals[dir]) {
-    clearInterval(dirRepeatIntervals[dir]);
-    delete dirRepeatIntervals[dir];
-  }
+// ============================================================
+// SCOREBOARD & STATUS
+// ============================================================
+function updateScoreboard() {
+  const el = document.getElementById('scoreboard');
+  const sorted = [...gameState.players].sort((a, b) => b.score - a.score);
+  el.innerHTML = sorted.map(p => {
+    const dead = p.alive ? '' : ' <span style="color:#644">[dead]</span>';
+    return `<div class="scoreboard-entry">
+      <span class="color-dot" style="background:rgb(${p.color.join(',')})"></span>
+      <span class="score-name">${p.name}${dead}</span>
+      <span class="score-value">${p.score}</span>
+    </div>`;
+  }).join('');
 }
 
-const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
-
-
-document.addEventListener('keydown', (e) => {
-  if (!conn.myId) return; // not joined yet
-  if (e.repeat) return;
-
-  if (dirMap[e.key]) {
-    e.preventDefault();
-    startDirRepeat(dirMap[e.key]);
-    return;
-  }
-
-  if (e.key === 'a' || e.key === 'A') { conn.send({ type: 'blast' }); return; }
-  if (e.key === 'b' || e.key === 'B' || e.key === ' ') { e.preventDefault(); conn.send({ type: 'bomb' }); return; }
-  if (e.key === 'x' || e.key === 'X') { conn.send({ type: 'shield' }); return; }
-  if (e.key === 'y' || e.key === 'Y') { conn.send({ type: 'kick' }); return; }
-  if (e.key === 'c' || e.key === 'C') { conn.send({ type: 'cycle_color' }); return; }
-});
-
-document.addEventListener('keyup', (e) => {
-  if (dirMap[e.key]) stopDirRepeat(dirMap[e.key]);
-});
+function updateGameStatus() {
+  const el = document.getElementById('game-status');
+  el.className = 'game-status ' + gameState.gamePhase;
+  const labels = { waiting: 'WAITING', playing: 'PLAYING', victory: 'VICTORY' };
+  el.textContent = labels[gameState.gamePhase] || gameState.gamePhase.toUpperCase();
+}
 
 // ============================================================
 // UTILS
@@ -467,11 +760,11 @@ function hslToRgb(h, s, l) {
   let r, g, b;
   if (s === 0) { r = g = b = l; }
   else {
-    const hue2rgb = (p, q, t) => {
-      if (t < 0) t += 1; if (t > 1) t -= 1;
-      if (t < 1/6) return p + (q - p) * 6 * t;
-      if (t < 1/2) return q;
-      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    const hue2rgb = (p, q, t2) => {
+      if (t2 < 0) t2 += 1; if (t2 > 1) t2 -= 1;
+      if (t2 < 1/6) return p + (q - p) * 6 * t2;
+      if (t2 < 1/2) return q;
+      if (t2 < 2/3) return p + (q - p) * (2/3 - t2) * 6;
       return p;
     };
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
@@ -486,9 +779,9 @@ function hslToRgb(h, s, l) {
 // ============================================================
 // INIT
 // ============================================================
-renderer.computeLayout();
-conn.connect();
-window.addEventListener('resize', () => { renderer.computeLayout(); renderer.draw(); });
+computeLayout();
+connect();
+window.addEventListener('resize', () => { computeLayout(); drawCanvas(); });
 </script>
 </body>
 </html>
