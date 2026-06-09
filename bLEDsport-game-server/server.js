@@ -430,6 +430,7 @@ function startGame() {
     p.pos = spawnPos();
     p.lastDelta = 0;
     p.hasDash = true;
+    p.dashAnim = null;
     p.shieldActive = false;
     p.bombMaxCharges = 1;
     p.bombCharges = 1;
@@ -515,6 +516,7 @@ function createPlayer(id) {
     lastMoveTime: 0,
     hasDash: true,
     lastDashTime: 0,
+    dashAnim: null, // { startPos, endPos, dir, startTime }
     // Abilities
     bombCharges: 1,
     bombMaxCharges: 1,
@@ -647,6 +649,7 @@ function hitPlayer(player, attackerId, now) {
   player.alive = false;
   player.respawnAt = now + gameConfig.respawnMs;
   player.shieldActive = false;
+  player.dashAnim = null;
   const attacker = players.get(attackerId);
   if (attacker && attacker !== player) attacker.score++;
 
@@ -718,19 +721,21 @@ function handleInput(playerId, input) {
       while (landPos >= 0 && landPos < NUM_LEDS && (isWallAt(landPos) || isSweeperAt(landPos))) {
         landPos += dir;
       }
-      // Consume dash regardless
+      const oldPos = player.pos;
       player.hasDash = false;
       player.lastDashTime = now;
       if (landPos >= 0 && landPos < NUM_LEDS) {
         player.pos = landPos;
+        player.dashAnim = { startPos: oldPos, endPos: landPos, dir, startTime: now };
       }
-      // If landing is off-strip, player just stays put (dash consumed)
     } else if (hitWall) {
       return;
     } else if (hitLethalSweeper) {
       hitPlayer(player, null, now);
       return;
     } else if (wantsDash) {
+      const oldPos = player.pos;
+      player.dashAnim = { startPos: oldPos, endPos: newPos, dir: delta > 0 ? 1 : -1, startTime: now };
       player.pos = newPos;
       player.hasDash = false;
       player.lastDashTime = now;
@@ -954,6 +959,7 @@ function tick() {
       p.pos = spawnPos();
       p.lastDelta = 0;
       p.hasDash = true;
+      p.dashAnim = null;
       p.shieldActive = false;
       p.bombMaxCharges = 1;
       p.bombCharges = 1;
@@ -1337,6 +1343,37 @@ function tick() {
       if (flash) pixels[p.pos] = [80, 0, 0];
       continue;
     }
+    // Dash inchworm animation
+    if (p.dashAnim) {
+      const elapsed = now - p.dashAnim.startTime;
+      const STRETCH_MS = 80;
+      const CONTRACT_MS = 70;
+      const totalMs = STRETCH_MS + CONTRACT_MS;
+      if (elapsed >= totalMs) {
+        p.dashAnim = null;
+      } else {
+        const { startPos, endPos, dir } = p.dashAnim;
+        const dist = Math.abs(endPos - startPos);
+        let frontPos, backPos;
+        if (elapsed < STRETCH_MS) {
+          const t = elapsed / STRETCH_MS;
+          backPos = startPos;
+          frontPos = startPos + dir * Math.round(t * dist);
+        } else {
+          const t = (elapsed - STRETCH_MS) / CONTRACT_MS;
+          frontPos = endPos;
+          backPos = startPos + dir * Math.round(t * dist);
+        }
+        const lo = Math.min(backPos, frontPos);
+        const hi = Math.max(backPos, frontPos);
+        for (let led = lo; led <= hi; led++) {
+          if (led >= 0 && led < NUM_LEDS) {
+            pixels[led] = [...p.color];
+          }
+        }
+        continue; // skip normal player rendering
+      }
+    }
     // Shield glow
     if (p.shieldActive) {
       for (let d = -1; d <= 1; d++) {
@@ -1392,6 +1429,12 @@ function serializePlayers() {
       bombReady,
       blastCharges: blastReady, blastMax: p.blastMaxCharges,
       shieldReady,
+      dashAnim: p.dashAnim ? {
+        startPos: p.dashAnim.startPos,
+        endPos: p.dashAnim.endPos,
+        dir: p.dashAnim.dir,
+        elapsed: now - p.dashAnim.startTime,
+      } : null,
     };
   });
 }
