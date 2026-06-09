@@ -1301,7 +1301,7 @@ function tick() {
       for (let d = -half; d <= half; d++) {
         const led = b.pos + d;
         if (led >= 0 && led < NUM_LEDS) {
-          const bri = d === 0 ? 255 : 120;
+          const bri = d === 0 ? 255 : 20;
           pixels[led] = [Math.round(bri * pulse), 0, 0];
         }
       }
