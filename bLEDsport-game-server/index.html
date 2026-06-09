@@ -262,7 +262,7 @@ const gameState = {
   players: [], waves: [], powerups: [], bombs: [], fires: [],
   animTime: 0, gamePhase: 'waiting',
   victoryColor: null, victoryPlayerName: '',
-  cornerWalls: [], randomWalls: [], sweeper: null,
+  randomWalls: [], sweeper: null,
   portalA: 0, portalB: NUM_LEDS - 1, portalBlinking: false,
 };
 
@@ -306,7 +306,6 @@ function connect() {
       gameState.gamePhase = msg.gamePhase || 'waiting';
       gameState.victoryColor = msg.victoryColor || null;
       gameState.victoryPlayerName = msg.victoryPlayerName || '';
-      gameState.cornerWalls = msg.cornerWalls || [];
       gameState.randomWalls = msg.randomWalls || [];
       gameState.sweeper = msg.sweeper || null;
       gameState.portalA = msg.portalA != null ? msg.portalA : 0;
@@ -563,15 +562,6 @@ function drawCanvas() {
   }
 
   // Walls (orange)
-  for (const w of gameState.cornerWalls) {
-    if (!w.size) continue;
-    for (let d = 0; d < w.size; d++) {
-      for (const dir of [-1, 1]) {
-        const led = w.pos + d * dir;
-        if (led >= 0 && led < NUM_LEDS) pixels[led] = [200, 120, 0];
-      }
-    }
-  }
   for (const w of gameState.randomWalls) {
     const half = Math.floor(w.size / 2);
     for (let d = -half; d <= half; d++) {

@@ -49,9 +49,6 @@ const CONFIG_SCHEMA = {
   portalsAnywhere:  { default: false, category: 'portals', live: true },
 
   // Walls
-  cornerWallsEnabled:   { default: false, category: 'walls', live: true },
-  cornerWallMaxSize:    { default: 6,   min: 2, max: 15, step: 1, category: 'walls', live: true },
-  cornerWallGrowMs:     { default: 5000, min: 1000, max: 30000, step: 1000, category: 'walls', live: true },
   randomWallsEnabled:   { default: false, category: 'walls', live: true },
   randomWallSpawnMs:    { default: 10000, min: 3000, max: 30000, step: 1000, category: 'walls', live: true },
   randomWallSize:       { default: 5,   min: 1, max: 15, step: 1, category: 'walls', live: true },
@@ -381,10 +378,6 @@ let lastPowerupSpawn = Date.now();
 let nextPowerupDelay = randomBetween(gameConfig.powerupSpawnMinMs, gameConfig.powerupSpawnMaxMs);
 
 // Wall state
-let cornerWalls = [
-  { pos: ZONES[1].start, currentSize: 0, lastGrowAt: 0 }, // LED 58 (left/top boundary)
-  { pos: ZONES[1].end, currentSize: 0, lastGrowAt: 0 },   // LED 134 (top/right boundary)
-];
 let randomWalls = []; // { pos, size }
 let lastRandomWallSpawn = 0;
 let sweeper = { pos: 0, dir: 1 };
@@ -416,7 +409,6 @@ function resetGame() {
   if (globalThis.padPlayers) globalThis.padPlayers.clear();
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
-  cornerWalls.forEach(w => { w.currentSize = 0; w.lastGrowAt = 0; });
   randomWalls = [];
   sweeper.pos = 0;
   sweeper.dir = 1;
@@ -454,7 +446,6 @@ function startGame() {
   fires = [];
   lastPowerupSpawn = Date.now();
   lastInputTime = Date.now();
-  cornerWalls.forEach(w => { w.currentSize = 0; w.lastGrowAt = Date.now(); });
   randomWalls = [];
   lastRandomWallSpawn = Date.now();
   sweeper.pos = 0;
@@ -561,13 +552,6 @@ function getZone(pos) {
 
 // --- Wall collision helpers ---
 function isWallAt(pos) {
-  if (gameConfig.cornerWallsEnabled) {
-    for (const w of cornerWalls) {
-      if (w.currentSize === 0) continue;
-      const half = Math.floor(w.currentSize / 2);
-      if (pos >= w.pos - half && pos <= w.pos + half) return true;
-    }
-  }
   if (gameConfig.randomWallsEnabled) {
     for (const w of randomWalls) {
       const half = Math.floor(w.size / 2);
@@ -583,13 +567,6 @@ function isWallAt(pos) {
 }
 
 function isStaticWallAt(pos) {
-  if (gameConfig.cornerWallsEnabled) {
-    for (const w of cornerWalls) {
-      if (w.currentSize === 0) continue;
-      const half = Math.floor(w.currentSize / 2);
-      if (pos >= w.pos - half && pos <= w.pos + half) return true;
-    }
-  }
   if (gameConfig.randomWallsEnabled) {
     for (const w of randomWalls) {
       const half = Math.floor(w.size / 2);
@@ -988,22 +965,11 @@ function tick() {
     }
   }
 
-  // Corner walls
-  if (gameConfig.cornerWallsEnabled) {
-    for (const w of cornerWalls) {
-      if (w.currentSize < gameConfig.cornerWallMaxSize && now - w.lastGrowAt >= gameConfig.cornerWallGrowMs) {
-        w.currentSize++;
-        w.lastGrowAt = now;
-      }
-    }
-  }
-
   // Random walls
   if (gameConfig.randomWallsEnabled) {
     if (randomWalls.length < gameConfig.randomWallMaxCount && now - lastRandomWallSpawn >= gameConfig.randomWallSpawnMs) {
       const allOccupied = [
         ...randomWalls.map(w => w.pos),
-        ...cornerWalls.map(w => w.pos),
         ...[...players.values()].map(p => p.pos),
         ...bombs.map(b => b.pos),
       ];
@@ -1130,13 +1096,6 @@ function tick() {
     if (gameConfig.pewPewDestroysWalls) {
       for (const frontPos of [w.center + r, w.center - r]) {
         if (frontPos < 0 || frontPos >= NUM_LEDS) continue;
-        for (const cw of cornerWalls) {
-          if (cw.currentSize === 0) continue;
-          const half = Math.floor(cw.currentSize / 2);
-          if (frontPos >= cw.pos - half && frontPos <= cw.pos + half) {
-            cw.currentSize = Math.max(0, cw.currentSize - 1);
-          }
-        }
         for (let i = randomWalls.length - 1; i >= 0; i--) {
           const rw = randomWalls[i];
           const half = Math.floor(rw.size / 2);
@@ -1164,16 +1123,6 @@ function tick() {
       }
       // Chip away at walls within explosion radius
       if (gameConfig.bombsDestroyWalls) {
-        for (const w of cornerWalls) {
-          if (w.currentSize === 0) continue;
-          const half = Math.floor(w.currentSize / 2);
-          for (let d = -half; d <= half; d++) {
-            if (Math.abs((w.pos + d) - b.pos) <= r) {
-              w.currentSize = Math.max(0, w.currentSize - 1);
-              break; // chip one LED per frame
-            }
-          }
-        }
         for (let i = randomWalls.length - 1; i >= 0; i--) {
           const w = randomWalls[i];
           const half = Math.floor(w.size / 2);
@@ -1268,20 +1217,6 @@ function tick() {
       const bLed = portalB.pos + d * bDir;
       if (bLed >= 0 && bLed < NUM_LEDS) {
         pixels[bLed] = [Math.round(20*fade), Math.round(100*(fade+swirl2)), Math.round(255*(fade+swirl2))];
-      }
-    }
-  }
-
-  // Corner walls (orange)
-  if (gameConfig.cornerWallsEnabled) {
-    for (const w of cornerWalls) {
-      if (w.currentSize === 0) continue;
-      const half = Math.floor(w.currentSize / 2);
-      for (let d = -half; d <= half; d++) {
-        const led = w.pos + d;
-        if (led >= 0 && led < NUM_LEDS) {
-          pixels[led] = [200, 120, 20];
-        }
       }
     }
   }
@@ -1435,7 +1370,6 @@ function tick() {
     powerups: powerups.map(p => ({ pos: p.pos, type: p.type })),
     bombs: bombs.map(b => ({ pos: b.pos, owner: b.owner, width: b.width, exploding: b.exploding, explodeFrame: b.explodeFrame, godBomb: b.godBomb || false })),
     fires: fires.map(f => ({ pos: f.pos, age: (Date.now() - f.placedAt) / gameConfig.flameDurationMs })),
-    cornerWalls: cornerWalls.map(w => ({ pos: w.pos, size: w.currentSize })),
     randomWalls: randomWalls.map(w => ({ pos: w.pos, size: w.size })),
     sweeper: gameConfig.sweeperEnabled ? { pos: Math.floor(sweeper.pos), size: gameConfig.sweeperSize, lethal: gameConfig.sweeperLethal } : null,
     portalA: portalA.pos,
@@ -1538,13 +1472,10 @@ function packStateForExternal(msg) {
   const victoryName = phase === 2 ? (msg.victoryPlayerName || '') : '';
   const nameBytes = Buffer.from(victoryName, 'utf8');
 
-  const cornerWalls = msg.cornerWalls || [];
   const randomWalls = msg.randomWalls || [];
   const sweeperMsg = msg.sweeper || null;
   const portalA = { pos: msg.portalA !== undefined ? msg.portalA : 0 };
   const portalB = { pos: msg.portalB !== undefined ? msg.portalB : 0 };
-
-  const activeCornerWallCount = cornerWalls.filter(w => w.size > 0).length;
 
   const size = 2
     + playerCount * 8
@@ -1552,7 +1483,6 @@ function packStateForExternal(msg) {
     + 1 + bombCount * 4
     + 1 + powerupCount
     + 1 + fireCount * 2
-    + 1 + activeCornerWallCount * 2  // corner walls
     + 1 + randomWalls.length * 2     // random walls
     + 1 + (sweeperMsg ? 2 : 0)       // sweeper
     + 2                               // portal positions
@@ -1609,14 +1539,6 @@ function packStateForExternal(msg) {
     const f = fires[i];
     buf[off++] = f.pos & 0xFF;
     buf[off++] = Math.round(Math.min(1, Math.max(0, f.age)) * 255);
-  }
-
-  // Corner walls
-  const activeCornerWalls = cornerWalls.filter(w => w.size > 0);
-  buf[off++] = activeCornerWalls.length;
-  for (const w of activeCornerWalls) {
-    buf[off++] = w.pos & 0xFF;
-    buf[off++] = w.size & 0xFF;
   }
 
   // Random walls
