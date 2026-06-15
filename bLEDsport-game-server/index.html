@@ -417,6 +417,21 @@ function formatLabel(key) {
   return key.replace(/([A-Z])/g, ' $1').replace(/Ms$/, ' (ms)').replace(/^./, c => c.toUpperCase());
 }
 
+// Friendly value display for special-cased fields. Falls back to the raw value.
+function formatValue(key, val) {
+  if (key === 'matchDurationMs') {
+    if (val <= 0) return 'Off';
+    const total = Math.round(val / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+  if (key === 'winsNeeded') {
+    return val <= 0 ? '∞ (timed only)' : String(val);
+  }
+  return String(val);
+}
+
 function buildSlider(parent, key, s) {
   const row = document.createElement('div');
   row.className = 'control';
@@ -425,13 +440,13 @@ function buildSlider(parent, key, s) {
   row.innerHTML = `
     <label title="${key}">${formatLabel(key)}</label>
     <input type="range" data-key="${key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${val}">
-    <span class="value" data-key="${key}">${val}</span>`;
+    <span class="value" data-key="${key}">${formatValue(key, val)}</span>`;
   parent.appendChild(row);
 
   const input = row.querySelector('input');
   input.addEventListener('input', () => {
     const v = Number(input.value);
-    row.querySelector('.value').textContent = v;
+    row.querySelector('.value').textContent = formatValue(key, v);
     debouncedSend(key, s.category, v);
   });
 }
@@ -472,7 +487,7 @@ function syncControls() {
       const input = document.querySelector(`input[data-key="${key}"]`);
       if (input) input.value = val;
       const span = document.querySelector(`span.value[data-key="${key}"]`);
-      if (span) span.textContent = val;
+      if (span) span.textContent = formatValue(key, val);
     }
   }
 }
