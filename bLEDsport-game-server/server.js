@@ -639,6 +639,33 @@ function pushChain(pusher, dir, originId, visited = new Set()) {
   return false;
 }
 
+// Returns the single player with the strictly-highest score, or null on a tie/empty.
+function soleLeader() {
+  let best = null;
+  let bestScore = -Infinity;
+  let tied = false;
+  for (const p of players.values()) {
+    if (p.score > bestScore) {
+      bestScore = p.score;
+      best = p;
+      tied = false;
+    } else if (p.score === bestScore) {
+      tied = true;
+    }
+  }
+  return tied ? null : best;
+}
+
+// Transition into the victory phase for a given winning player.
+function declareWinner(player, now) {
+  gamePhase = 'victory';
+  victoryStart = now;
+  victoryColor = player.color;
+  victoryPlayerName = player.name;
+  speak(`${player.name} wins`);
+  console.log(`${player.name} wins!`);
+}
+
 function hitPlayer(player, attackerId, now) {
   if (gamePhase !== 'playing') return; // game already ended
   if (player.shieldActive) return; // shield absorbs the hit
