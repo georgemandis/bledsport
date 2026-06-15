@@ -1424,6 +1424,23 @@ function tick() {
     ];
   }
 
+  // Spectator-orb proximity glow (additive, soft cool-white, fades fast if stale)
+  if (orbGlow && Date.now() - orbGlow.at <= 150) {
+    const GLOW_SPREAD = 4; // LEDs each side
+    for (let d = -GLOW_SPREAD; d <= GLOW_SPREAD; d++) {
+      const idx = orbGlow.pos + d;
+      if (idx < 0 || idx >= NUM_LEDS) continue;
+      const fall = (1 - Math.abs(d) / (GLOW_SPREAD + 1)) * orbGlow.intensity;
+      const add = Math.round(120 * fall); // cool-white add
+      const cur = pixels[idx] || [0, 0, 0];
+      pixels[idx] = [
+        Math.min(255, cur[0] + Math.round(add * 0.7)),
+        Math.min(255, cur[1] + Math.round(add * 0.85)),
+        Math.min(255, cur[2] + add),
+      ];
+    }
+  }
+
   sendToWled(pixels);
   broadcast({
     type: 'state',
