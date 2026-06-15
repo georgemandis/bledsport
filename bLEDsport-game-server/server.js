@@ -1716,10 +1716,10 @@ function connectExternal() {
           return;
         }
         if (input.type === 'god_bomb') {
-          if (!gameConfig.spectatorInteraction) return;
-          if (gamePhase !== 'playing') return;
+          if (!gameConfig.spectatorInteraction) { console.log('[god_bomb] DROP: spectatorInteraction off'); return; }
+          if (gamePhase !== 'playing') { console.log(`[god_bomb] DROP: phase=${gamePhase}`); return; }
           const pos = Math.round(input.pos);
-          if (pos < 0 || pos >= NUM_LEDS) return;
+          if (pos < 0 || pos >= NUM_LEDS) { console.log(`[god_bomb] DROP: pos out of range ${pos}`); return; }
           bombs.push({
             pos,
             owner: null,
@@ -1729,14 +1729,16 @@ function connectExternal() {
             explodeFrame: 0,
             godBomb: true,
           });
+          console.log(`[god_bomb] OK pos=${pos} (bombs now ${bombs.length})`);
         }
         if (input.type === 'orb_glow') {
-          if (!gameConfig.spectatorInteraction) return;
-          if (gamePhase !== 'playing') return;
+          if (!gameConfig.spectatorInteraction) { console.log('[orb_glow] DROP: spectatorInteraction off'); return; }
+          if (gamePhase !== 'playing') { console.log(`[orb_glow] DROP: phase=${gamePhase}`); return; }
           const pos = Math.round(input.pos);
-          if (pos < 0 || pos >= NUM_LEDS) return;
+          if (pos < 0 || pos >= NUM_LEDS) { console.log(`[orb_glow] DROP: pos out of range ${pos}`); return; }
           const intensity = Math.max(0, Math.min(1, input.intensity || 0));
           orbGlow = { pos, intensity, at: Date.now() };
+          console.log(`[orb_glow] OK pos=${pos} intensity=${intensity.toFixed(2)}`);
         }
       } catch {}
     };
