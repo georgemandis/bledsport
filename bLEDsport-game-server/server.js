@@ -680,14 +680,11 @@ function hitPlayer(player, attackerId, now) {
   // const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
   // speak(`${player.name}, ${phrase}`);
 
-  // Check for winner
-  if (attacker && attacker !== player && attacker.score >= gameConfig.winsNeeded) {
-    gamePhase = 'victory';
-    victoryStart = now;
-    victoryColor = attacker.color;
-    victoryPlayerName = attacker.name;
-    speak(`${attacker.name} wins`);
-    console.log(`${attacker.name} wins!`);
+  // Check for winner (best-of-X — active in both playing and sudden death).
+  // winsNeeded === 0 means infinite (pure timed mode), so skip the check.
+  if (attacker && attacker !== player && gameConfig.winsNeeded > 0 &&
+      attacker.score >= gameConfig.winsNeeded) {
+    declareWinner(attacker, now);
   }
 }
 
@@ -939,6 +936,20 @@ function tick() {
     console.log('No input for 60s — resetting');
     speak('game over, no activity');
     resetGame();
+    return;
+  }
+
+  // --- Match timer expiry (only during normal play; sudden death has no timer) ---
+  if (gamePhase === 'playing' && gameConfig.matchDurationMs > 0 &&
+      now - matchStartAt >= gameConfig.matchDurationMs) {
+    const leader = soleLeader();
+    if (leader) {
+      declareWinner(leader, now);
+    } else {
+      gamePhase = 'suddenDeath';
+      speak('sudden death');
+      console.log('Time! Sudden death.');
+    }
     return;
   }
 
