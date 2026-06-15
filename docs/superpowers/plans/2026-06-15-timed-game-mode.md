@@ -24,10 +24,84 @@
   - The playing-phase `broadcast({...})` (line ~1384): include `gamePhase` correctly (already dynamic) — add a leader-eval helper.
   - `packStateForExternal()` (line ~1483-1600): append timer bytes at tail; bump size; map `suddenDeath` to phase `3`.
 - **Modify** `bledsport-external/index.html`
+  - **Cleanup (Task 0):** remove the dead `cornerWalls` decode section that mis-aligns the wall offsets, and its unused render block + state field.
   - `PHASES` array (line 406): add `'suddenDeath'`.
   - `gameState` object (line ~100-110): add timer fields.
   - `unpackState()` (line ~520-532): read trailing timer bytes after victory block.
   - `renderer.draw()` (line ~342-356): countdown overlay + sudden-death banner.
+
+---
+
+## Task 0: Fix the corner-walls decode mismatch (cleanup)
+
+**Background:** The spectator decoder reads a `cornerWallCount` section (index.html:491-495) that the game server **never sends** — `packStateForExternal()` writes `random walls → sweeper → portals → victory` with no corner-walls section, and the server has no concept of corner walls (zero references in `server.js`). The client renders `cornerWalls` (line 184) identically to `randomWalls` (line 193). Net effect: `cornerWalls` is dead code that also shifts every subsequent decode offset by one section, corrupting random-wall/sweeper/portal decoding whenever random walls are present. Removing it makes the decoder match the wire format exactly. This is independent of the timer feature, so it goes first on its own commit.
+
+**Files:**
+- Modify: `bledsport-external/index.html:101` (remove `cornerWalls` state field)
+- Modify: `bledsport-external/index.html:183-190` (remove corner-walls render block)
+- Modify: `bledsport-external/index.html:489-495` (remove corner-walls decode block)
+
+- [ ] **Step 1: Remove the corner-walls decode block**
+
+In `unpackState()`, the section guarded by `if (off < buf.length) {` currently starts (lines 490-495):
+
+```js
+  if (off < buf.length) {
+    const cornerWallCount = buf[off++] || 0;
+    gameState.cornerWalls = [];
+    for (let i = 0; i < cornerWallCount; i++) {
+      gameState.cornerWalls.push({ pos: buf[off++], size: buf[off++] });
+    }
+
+    // Random walls
+    const randomWallCount = buf[off++] || 0;
+```
+
+Change it to drop the corner-walls read so `randomWallCount` is the first thing read inside the guard:
+
+```js
+  if (off < buf.length) {
+    // Random walls
+    const randomWallCount = buf[off++] || 0;
+```
+
+- [ ] **Step 2: Remove the corner-walls render block**
+
+Delete the render block at lines 183-190:
+
+```js
+    // Corner walls (orange)
+    for (const w of (gameState.cornerWalls || [])) {
+      const half = Math.floor(w.size / 2);
+      for (let d = -half; d <= half; d++) {
+        const led = w.pos + d;
+        if (led >= 0 && led < NUM_LEDS) pixels[led] = [200, 120, 0];
+      }
+    }
+
+```
+
+(Random walls are still rendered by the block immediately below it, unchanged.)
+
+- [ ] **Step 3: Remove the unused state field**
+
+Delete line 101:
+
+```js
+  cornerWalls: [],
+```
+
+- [ ] **Step 4: Manual verification — random walls render correctly**
+
+Run both servers. In the config, enable `randomWallsEnabled` (and a short spawn time if available). Join a player and start a game so random walls spawn.
+Expected: orange wall segments appear at the correct LED positions, and the sweeper/portals also render in their correct positions (previously they could be shifted when walls were present). No console errors.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add bledsport-external/index.html
+git commit -m "fix: remove dead cornerWalls decode that mis-aligned wall offsets"
+```
 
 ---
 
@@ -455,7 +529,7 @@ The timer bytes are the last 4 bytes of the packet, after the victory block. At 
   }
 ```
 
-Note on offsets: because the victory block is variable-length and these bytes follow it, reading them only after the victory `if/else` keeps `off` correct for both victory and non-victory packets. The append-at-tail design means we never disturb the existing (and quirky) middle sections.
+Note on offsets: because the victory block is variable-length and these bytes follow it, reading them only after the victory `if/else` keeps `off` correct for both victory and non-victory packets. With Task 0 applied, the decoder now matches the wire format exactly, so the trailing read is reliable.
 
 - [ ] **Step 3: Manual verification — values decode**
 
@@ -542,4 +616,4 @@ git commit -m "feat: render countdown timer and sudden-death banner"
 
 - **Spec coverage:** config field (T1), match start (T2), timer expiry + highest-score win (T3/T4), sudden death on tie + resolution (T5), phase 3 + timer anchors in protocol (T6/T7), decode + backward-compat guard (T8), countdown + banner + urgent color + timer-off (T9). Timeout win reuses the victory animation via `declareWinner` (T3/T4). All spec sections map to a task.
 - **Type/name consistency:** `soleLeader()`, `declareWinner(player, now)`, `matchStartAt`, `matchDurationMs`, `matchElapsedMs` (server-side, ms) → `matchDurationSec`, `matchElapsedSec`, `timerDeadline`, `formatClock(ms)` (client-side, sec/ms). `gamePhase === 'suddenDeath'` ↔ phase number `3` ↔ `PHASES[3]`. Consistent across tasks.
-- **Append-at-tail safety:** the existing server packer and client decoder have a pre-existing mismatch in the middle "corner walls / random walls" section. The plan never touches that region — timer bytes go strictly at the tail, after the variable-length victory block, so existing behavior is preserved.
+- **Decoder alignment:** Task 0 removes the dead `cornerWalls` decode section that previously mis-aligned the wall/sweeper/portal offsets, so reader and writer now match the wire format exactly. Timer bytes (T6/T8) are appended strictly at the tail, after the variable-length victory block, so they don't disturb any existing section.
