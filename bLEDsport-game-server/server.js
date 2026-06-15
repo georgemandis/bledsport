@@ -479,7 +479,7 @@ function startGame() {
   portalB.pos = NUM_LEDS - 1;
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
-  musicPlay();
+  if (!musicProc) musicPlay();
   console.log(`Game started with ${players.size} players`);
 }
 
