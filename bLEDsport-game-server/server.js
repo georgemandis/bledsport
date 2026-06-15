@@ -281,7 +281,6 @@ function speak(text) {
 let musicProc = null;
 
 function detectMusicPlayer() {
-  if (IS_MAC) return 'afplay'; // built-in on macOS
   try { execFileSync('which', ['mpg123']); return 'mpg123'; }
   catch { return null; }
 }
@@ -292,13 +291,11 @@ function musicPlay(file) {
   if (!MUSIC_PLAYER) return;
   musicStop();
   const filePath = path.resolve(__dirname, 'assets', file);
-  if (MUSIC_PLAYER === 'afplay') {
-    musicProc = nodeSpawn('afplay', [filePath], { stdio: 'ignore' });
-  } else {
-    musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
-  }
+
+  musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+
   musicProc.on('error', (err) => { musicProc = null; });
   musicProc.on('exit', () => { musicProc = null; });
 }
