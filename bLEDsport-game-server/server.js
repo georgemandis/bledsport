@@ -1453,7 +1453,7 @@ function tick() {
   sendToWled(pixels);
   broadcast({
     type: 'state',
-    gamePhase: 'playing',
+    gamePhase, // 'playing' or 'suddenDeath' — this path runs for both
     players: serializePlayers(),
     waves: serializeWaves(),
     powerups: powerups.map(p => ({ pos: p.pos, type: p.type })),
