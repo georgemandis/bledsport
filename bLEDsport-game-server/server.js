@@ -288,23 +288,50 @@ function detectMusicPlayer() {
 const MUSIC_PLAYER = detectMusicPlayer();
 if (MUSIC_PLAYER) console.log(`Music enabled (${MUSIC_PLAYER})`);
 
-function musicPlay(file) {
+const songs = [
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-%20Fight%20to%20Survive%20[Soundtrack]%20[FYcJZF_8WNo].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-%20Kumite%20[%20Soundtrack]%20[haGaUFzDcE8].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Captain%20[Soundtrack]%20[sO7arIVxGzc].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Chong%20Li%20Kills%20[Soundtrack]%20[N_j4jP1sjtE].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Dim%20Mak%20[Soundtrack]%20[tJeWL1Hxk7w].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Fight%20to%20Survive%20End%20Title%20[Soundtrack]%20[cvQ1AsafOAE].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Finale-Powder-Triumph%20[Soundtrack]%20[EpvC8vw2SHM].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-First%20Day%20[Soundtrack]%20[GDk7EIQsUV0].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Flashback%20Montage%20[Soundtrack]%20[AShl0lEwEfM].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Here%20for%20the%20Finale%20[Soundtrack]%20[03up5mjQ_Uc].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-In%20Hong%20Kong%20[Soundtrack]%20[PUelHNKDLn0].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Jackson%20Falls%20[Soundtrack]%20[6iMAnOo_lLw].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Morning%20After%20[Soundtrack]%20[N7hRczUCG5U].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-On%20My%20Own-Alone%20[Soundtrack]%20[dyAYNOOiNYU].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Paco%20vs.%20Dux%20[Soundtrack]%20[CwcKYkCRjcU].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Police%20[%20Soundtrack]%20[6pgijdByxRA].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Preparation%20[Soundtrack]%20[-sw-Amk3xn4].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Samoan%20Balls%20[Soundtrack]%20[2rduL9a-VkY].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Second%20Day%20[Soundtrack]%20[TiHOFoPzOgM].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-Steal%20the%20Night%20Instrumental%20[Soundtrack]%20[_9dUvLzbwBc].mp3",
+  "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-The%20Walled%20City%20[%20Soundtrack]%20[yE2b5t6Lgd8].mp3",
+];
+
+function musicPlay() {
   if (!MUSIC_PLAYER) return;
   musicStop();
-  const filePath = path.resolve(__dirname, 'assets', file);
+  const url = songs[Math.floor(Math.random() * songs.length)];
 
-  musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--loop', '-1', '--quiet', filePath], {
+  musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--quiet', url], {
     stdio: ['ignore', 'ignore', 'pipe'],
   });
 
-  musicProc.on('error', (err) => { musicProc = null; });
-  musicProc.on('exit', () => { musicProc = null; });
+  musicProc.on('error', () => { musicProc = null; });
+  musicProc.on('exit', () => {
+    if (musicProc) musicPlay();
+  });
 }
 
 function musicStop() {
   if (!musicProc) return;
-  musicProc.kill();
+  const proc = musicProc;
   musicProc = null;
+  proc.kill();
 }
 
 // --- WLED connection (DDP over UDP) ---
@@ -452,8 +479,7 @@ function startGame() {
   portalB.pos = NUM_LEDS - 1;
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
-  speak('fight');
-  musicPlay('fight.mp3');
+  musicPlay();
   console.log(`Game started with ${players.size} players`);
 }
 
