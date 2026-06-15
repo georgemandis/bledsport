@@ -1654,6 +1654,10 @@ function packStateForExternal(msg) {
 }
 
 function broadcast(msg) {
+  msg.matchDurationMs = gameConfig.matchDurationMs;
+  msg.matchElapsedMs = (gamePhase === 'playing' && matchStartAt)
+    ? Date.now() - matchStartAt
+    : 0;
   const data = JSON.stringify(msg);
   for (const ws of clients.keys()) {
     if (ws.readyState === 1) ws.send(data);
