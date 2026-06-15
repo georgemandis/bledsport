@@ -247,36 +247,7 @@ const DEBUG = process.argv.includes('--debug');
 if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
 
 // --- Speech (cross-platform TTS) ---
-const { execFile, execFileSync, spawn: nodeSpawn } = require('child_process');
-const IS_MAC = process.platform === 'darwin';
-
-function detectTTS() {
-  try {
-    if (IS_MAC) return 'say'; // built-in on macOS
-    execFileSync('which', ['espeak-ng']);
-    return 'espeak-ng';
-  } catch { return null; }
-}
-const TTS_ENGINE = detectTTS();
-if (TTS_ENGINE) console.log(`TTS enabled (${TTS_ENGINE})`);
-
-function speak(text) {
-  if (!TTS_ENGINE) return;
-  if (TTS_ENGINE === 'say') {
-    const rate = 150 + Math.floor(Math.random() * 100); // 150-250 wpm
-    execFile('say', ['-r', String(rate), text], (err) => {});
-  } else {
-    const pitch = 20 + Math.floor(Math.random() * 70);
-    const speed = 120 + Math.floor(Math.random() * 100);
-    const variant = Math.floor(Math.random() * 5) + 1;
-    execFile('espeak-ng', [
-      '-p', String(pitch),
-      '-s', String(speed),
-      '-v', `en+m${variant}`,
-      text,
-    ], (err) => {});
-  }
-}
+const { execFileSync, spawn: nodeSpawn } = require('child_process');
 
 // --- Music (cross-platform) ---
 let musicProc = null;
@@ -321,8 +292,14 @@ function musicPlay() {
     stdio: ['ignore', 'ignore', 'pipe'],
   });
 
-  musicProc.on('error', () => { musicProc = null; });
+  console.log(`Playing music: ${url}`);
+
+  musicProc.on('error', () => { 
+    console.log('Music playback error');
+    musicProc = null; 
+  });
   musicProc.on('exit', () => {
+    console.log('Music playback finished');
     if (musicProc) musicPlay();
   });
 }
@@ -688,7 +665,6 @@ function declareWinner(player, now) {
   victoryStart = now;
   victoryColor = player.color;
   victoryPlayerName = player.name;
-  speak(`${player.name} wins`);
   console.log(`${player.name} wins!`);
 }
 
@@ -703,8 +679,6 @@ function hitPlayer(player, attackerId, now) {
   const attacker = players.get(attackerId);
   if (attacker && attacker !== player) attacker.score++;
 
-  // const phrase = DEATH_PHRASES[Math.floor(Math.random() * DEATH_PHRASES.length)];
-  // speak(`${player.name}, ${phrase}`);
 
   // Check for winner (best-of-X — active in both playing and sudden death).
   // winsNeeded === 0 means infinite (pure timed mode), so skip the check.
@@ -845,7 +819,6 @@ function handleInput(playerId, input) {
     if (available <= 0) return;
     waves.push({ owner: playerId, center: player.pos, radius: 0, maxRadius: gameConfig.waveMaxRadius });
     player.blastLastUsed.push(now);
-    // speak(BLAST_PHRASES[Math.floor(Math.random() * BLAST_PHRASES.length)]);
   }
 
   if (input.type === 'shield') {
@@ -966,7 +939,6 @@ function tick() {
   // Idle timeout
   if (now - lastInputTime >= gameConfig.idleResetMs) {
     console.log('No input for 60s — resetting');
-    speak('game over, no activity');
     resetGame();
     return;
   }
@@ -979,7 +951,6 @@ function tick() {
       declareWinner(leader, now);
     } else {
       gamePhase = 'suddenDeath';
-      speak('sudden death');
       console.log('Time! Sudden death.');
     }
     return;
@@ -1830,7 +1801,6 @@ const server = Bun.serve({
           clients.set(ws, id);
           ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
           console.log(`Player ${id} joined (${players.size} total)`);
-          speak(`${player.name} has joined`);
           startGame(); // restart round with all current players
           return;
         }
@@ -1855,7 +1825,6 @@ const server = Bun.serve({
             explodeFrame: 0,
             godBomb: true,
           });
-          // speak(GOD_PHRASES[Math.floor(Math.random() * GOD_PHRASES.length)]);
           return;
         }
         const id = clients.get(ws);
@@ -1946,7 +1915,6 @@ if (gamepadMappings.length > 0) {
           players.set(id, player);
           padPlayers.set(pad.index, id);
           console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
-          speak(`${player.name} has joined`);
           startGame(); // restart round with all current players
         }
         return;
