@@ -1537,9 +1537,14 @@ function packStateForExternal(msg) {
   const powerupCount = Math.min(powerups.length, 255);
   const fireCount = Math.min(fires.length, 255);
 
-  const phase = msg.gamePhase === 'waiting' ? 0 : msg.gamePhase === 'playing' ? 1 : 2;
+  const phase = msg.gamePhase === 'waiting' ? 0
+    : msg.gamePhase === 'playing' ? 1
+    : msg.gamePhase === 'suddenDeath' ? 3
+    : 2;
   const victoryName = phase === 2 ? (msg.victoryPlayerName || '') : '';
   const nameBytes = Buffer.from(victoryName, 'utf8');
+  const matchDurationSec = Math.min(65535, Math.round((msg.matchDurationMs || 0) / 1000));
+  const matchElapsedSec = Math.min(65535, Math.max(0, Math.round((msg.matchElapsedMs || 0) / 1000)));
 
   const randomWalls = msg.randomWalls || [];
   const sweeperMsg = msg.sweeper || null;
@@ -1555,7 +1560,8 @@ function packStateForExternal(msg) {
     + 1 + randomWalls.length * 2     // random walls
     + 1 + (sweeperMsg ? 2 : 0)       // sweeper
     + 2                               // portal positions
-    + (phase === 2 ? 3 + 1 + nameBytes.length : 0);
+    + (phase === 2 ? 3 + 1 + nameBytes.length : 0)
+    + 4;                              // matchDurationSec + matchElapsedSec (Uint16 each)
 
   const buf = Buffer.alloc(size);
   let off = 0;
@@ -1639,6 +1645,10 @@ function packStateForExternal(msg) {
     nameBytes.copy(buf, off);
     off += nameBytes.length;
   }
+
+  // Timer anchors (always present, at the very tail)
+  buf.writeUInt16BE(matchDurationSec, off); off += 2;
+  buf.writeUInt16BE(matchElapsedSec, off); off += 2;
 
   return buf;
 }
