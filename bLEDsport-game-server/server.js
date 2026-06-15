@@ -356,8 +356,9 @@ function sendToWled(pixels) {
 
 // --- Game state ---
 
-let gamePhase = 'waiting'; // 'waiting' | 'playing' | 'victory'
+let gamePhase = 'waiting'; // 'waiting' | 'playing' | 'suddenDeath' | 'victory'
 let victoryStart = 0;
+let matchStartAt = 0;
 let victoryColor = [255, 255, 255];
 let victoryPlayerName = '';
 let lastInputTime = Date.now();
@@ -418,6 +419,7 @@ function resetGame() {
 function startGame() {
   if (players.size < 1) return;
   gamePhase = 'playing';
+  matchStartAt = Date.now();
   // Reset scores and respawn everyone
   for (const p of players.values()) {
     p.score = 0;
