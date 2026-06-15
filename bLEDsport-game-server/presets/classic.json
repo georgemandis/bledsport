@@ -8,7 +8,6 @@
   "idleResetMs": 60000,
   "dashDistance": 5,
   "dashRegenMs": 3000,
-  "momentumTicks": 0,
   "momentumIntervalMs": 60,
   "bombWidth": 5,
   "bombFuseMs": 3000,

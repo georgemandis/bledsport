@@ -357,7 +357,7 @@ function buildPresetBar() {
       const name = prompt('Preset name (alphanumeric, dashes, underscores):');
       if (name) send({ type: 'save_preset', name });
     }},
-    { label: 'Reset', cls: 'action-reset', fn: () => send({ type: 'reset_presets' }) },
+    { label: 'Reset', cls: 'action-reset', fn: () => send({ type: 'reset_game' }) },
   ];
   for (const a of actions) {
     const btn = document.createElement('button');

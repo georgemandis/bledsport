@@ -17,7 +17,6 @@ const CONFIG_SCHEMA = {
   dashDistance:      { default: 5,     min: 1, max: 20, step: 1, category: 'movement', live: true },
   dashRegenMs:      { default: 3000,  min: 500, max: 10000, step: 250, category: 'movement', live: true },
   tickMs:           { default: 16,    min: 8, max: 100, step: 4, category: 'movement', live: false },
-  momentumTicks:    { default: 0,     min: 0, max: 12, step: 1, category: 'movement', live: true },
   momentumIntervalMs:{ default: 60,   min: 16, max: 200, step: 4, category: 'movement', live: true },
 
   // Bombs
@@ -46,7 +45,6 @@ const CONFIG_SCHEMA = {
   portalsMoving:    { default: false, category: 'portals', live: true },
   portalMoveIntervalMs: { default: 15000, min: 5000, max: 60000, step: 1000, category: 'portals', live: true },
   portalMomentum:   { default: 5,     min: 5, max: 12, step: 1, category: 'portals', live: true },
-  portalsAnywhere:  { default: false, category: 'portals', live: true },
 
   // Walls
   randomWallsEnabled:   { default: false, category: 'walls', live: true },
@@ -402,7 +400,6 @@ function resetGame() {
   for (const [ws, id] of clients.entries()) {
     if (id) {
       clients.set(ws, null);
-      ws.send(JSON.stringify({ type: 'reset' }));
     }
   }
   // Reset gamepad players
@@ -543,8 +540,8 @@ function wrapPos(pos) {
 
 function checkPortalTeleport(pos, dir) {
   if (!gameConfig.portalsEnabled) return null;
-  if (pos === portalA.pos) return { dest: portalB.pos, momentum: Math.max(gameConfig.portalMomentum, gameConfig.momentumTicks) };
-  if (pos === portalB.pos) return { dest: portalA.pos, momentum: Math.max(gameConfig.portalMomentum, gameConfig.momentumTicks) };
+  if (pos === portalA.pos) return { dest: portalB.pos, momentum: gameConfig.portalMomentum };
+  if (pos === portalB.pos) return { dest: portalA.pos, momentum: gameConfig.portalMomentum };
   return null;
 }
 
@@ -745,13 +742,6 @@ function handleInput(playerId, input) {
       const bumpDir = delta > 0 ? 1 : -1;
       const blocked = pushChain(player, bumpDir, playerId);
       if (blocked) player.pos = oldPos;
-    }
-
-    // Apply skating momentum (if configured)
-    if (gameConfig.momentumTicks > 0) {
-      player.momentum = gameConfig.momentumTicks;
-      player.momentumDir = delta > 0 ? 1 : -1;
-      player.lastMomentumTime = now;
     }
 
     // Push bombs when walking into them
@@ -1059,7 +1049,6 @@ function tick() {
     portalBlinking = timeSinceMove >= interval - 2000;
 
     if (timeSinceMove >= interval) {
-      if (gameConfig.portalsAnywhere) {
         // Pick two random positions with minimum distance of 20 LEDs apart
         const MIN_DIST = 20;
         for (let attempt = 0; attempt < 50; attempt++) {
@@ -1071,18 +1060,6 @@ function tick() {
             break;
           }
         }
-      } else {
-        const available = PORTAL_LANDMARKS.filter(l => l !== portalA.pos && l !== portalB.pos);
-        if (available.length >= 2) {
-          const shuffled = available.sort(() => Math.random() - 0.5);
-          portalA.pos = shuffled[0];
-          portalB.pos = shuffled[1];
-        } else if (available.length === 1) {
-          const keepOld = Math.random() > 0.5 ? portalA.pos : portalB.pos;
-          portalA.pos = available[0];
-          portalB.pos = keepOld;
-        }
-      }
       lastPortalMoveAt = now;
       portalBlinking = false;
     }
@@ -1753,14 +1730,8 @@ const server = Bun.serve({
           broadcastConfig();
           return;
         }
-        if (input.type === 'reset_presets') {
-          // Delete all non-classic presets
-          const presets = getPresetList();
-          for (const name of presets) {
-            if (name !== 'classic') deletePreset(name);
-          }
-          loadPreset('classic');
-          broadcastConfig();
+        if (input.type === 'reset_game') {
+          resetGame();
           return;
         }
 
