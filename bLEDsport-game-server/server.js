@@ -667,7 +667,7 @@ function declareWinner(player, now) {
 }
 
 function hitPlayer(player, attackerId, now) {
-  if (gamePhase !== 'playing') return; // game already ended
+  if (gamePhase !== 'playing' && gamePhase !== 'suddenDeath') return; // game already ended
   if (player.shieldActive) return; // shield absorbs the hit
 
   player.alive = false;
@@ -686,13 +686,19 @@ function hitPlayer(player, attackerId, now) {
       attacker.score >= gameConfig.winsNeeded) {
     declareWinner(attacker, now);
   }
+
+  // Sudden death: first kill that creates a sole leader ends the match
+  if (gamePhase === 'suddenDeath') {
+    const leader = soleLeader();
+    if (leader) declareWinner(leader, now);
+  }
 }
 
 // --- Input handling ---
 function handleInput(playerId, input) {
   const player = players.get(playerId);
   if (!player) return;
-  if (gamePhase !== 'playing') return; // only accept input during gameplay
+  if (gamePhase !== 'playing' && gamePhase !== 'suddenDeath') return; // only accept input during gameplay
   const now = Date.now();
   lastInputTime = now;
 
