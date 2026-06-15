@@ -105,12 +105,32 @@ git commit -m "fix: remove dead cornerWalls decode that mis-aligned wall offsets
 
 ---
 
-## Task 1: Add `matchDurationMs` config field
+## Task 1: Add `matchDurationMs` config field and allow infinite `winsNeeded`
 
 **Files:**
-- Modify: `bLEDsport-game-server/server.js:13` (inside `CONFIG_SCHEMA`, `gameRules` category)
+- Modify: `bLEDsport-game-server/server.js:9` (change `winsNeeded` min to 0)
+- Modify: `bLEDsport-game-server/server.js:13` (add `matchDurationMs`)
 
-- [ ] **Step 1: Add the config field**
+`winsNeeded: 0` means "infinite / no best-of win" — enabling a purely timed mode
+(set `matchDurationMs > 0` and `winsNeeded = 0`). This mirrors `matchDurationMs: 0`
+meaning "no timer". The best-of win check (Task 4) is guarded with `winsNeeded > 0`
+so a value of 0 never ends the match early.
+
+- [ ] **Step 1: Allow `winsNeeded = 0`**
+
+Change the `winsNeeded` line (line 9). It is currently:
+
+```js
+  winsNeeded:       { default: 3,     min: 1, max: 10, step: 1, category: 'gameRules', live: false },
+```
+
+Change `min: 1` to `min: 0`:
+
+```js
+  winsNeeded:       { default: 3,     min: 0, max: 10, step: 1, category: 'gameRules', live: false },
+```
+
+- [ ] **Step 2: Add the timer config field**
 
 In `CONFIG_SCHEMA`, immediately after the `victoryDurationMs` line (line 13), add:
 
@@ -118,16 +138,16 @@ In `CONFIG_SCHEMA`, immediately after the `victoryDurationMs` line (line 13), ad
   matchDurationMs:  { default: 120000, min: 0, max: 600000, step: 15000, category: 'gameRules', live: false },
 ```
 
-- [ ] **Step 2: Verify the server boots and exposes the field**
+- [ ] **Step 3: Verify the server boots and exposes the field**
 
 Run: `cd bLEDsport-game-server && bun server.js`
 Expected: server starts with no error (`Game reset — waiting for players` or similar). The config defaults loop at line ~71 will pick up `matchDurationMs: 120000` automatically. Stop the server with Ctrl-C.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add bLEDsport-game-server/server.js
-git commit -m "feat: add matchDurationMs config field"
+git commit -m "feat: add matchDurationMs config; allow winsNeeded=0 for infinite"
 ```
 
 ---
@@ -253,11 +273,13 @@ In `hitPlayer()`, replace the "Check for winner" block (lines 656-664):
   }
 ```
 
-with:
+with (note the `winsNeeded > 0` guard — `0` means infinite, so best-of never fires):
 
 ```js
-  // Check for winner (best-of-X — active in both playing and sudden death)
-  if (attacker && attacker !== player && attacker.score >= gameConfig.winsNeeded) {
+  // Check for winner (best-of-X — active in both playing and sudden death).
+  // winsNeeded === 0 means infinite (pure timed mode), so skip the check.
+  if (attacker && attacker !== player && gameConfig.winsNeeded > 0 &&
+      attacker.score >= gameConfig.winsNeeded) {
     declareWinner(attacker, now);
   }
 ```
