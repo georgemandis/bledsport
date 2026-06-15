@@ -389,6 +389,7 @@ let portalA = { pos: 0 };
 let portalB = { pos: NUM_LEDS - 1 };
 let lastPortalMoveAt = 0;
 let portalBlinking = false;
+let orbGlow = null; // transient spectator-orb proximity glow: { pos, intensity, at }
 
 function resetGame() {
   gamePhase = 'waiting';
@@ -416,6 +417,7 @@ function resetGame() {
   portalB.pos = NUM_LEDS - 1;
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
+  orbGlow = null;
   musicStop();
   console.log('Game reset — waiting for players');
 }
@@ -456,6 +458,7 @@ function startGame() {
   portalB.pos = NUM_LEDS - 1;
   lastPortalMoveAt = Date.now();
   portalBlinking = false;
+  orbGlow = null;
   if (!musicProc) musicPlay();
   console.log(`Game started with ${players.size} players`);
 }
@@ -1709,6 +1712,14 @@ function connectExternal() {
             explodeFrame: 0,
             godBomb: true,
           });
+        }
+        if (input.type === 'orb_glow') {
+          if (!gameConfig.spectatorInteraction) return;
+          if (gamePhase !== 'playing') return;
+          const pos = Math.round(input.pos);
+          if (pos < 0 || pos >= NUM_LEDS) return;
+          const intensity = Math.max(0, Math.min(1, input.intensity || 0));
+          orbGlow = { pos, intensity, at: Date.now() };
         }
       } catch {}
     };
