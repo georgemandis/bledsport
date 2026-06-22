@@ -108,10 +108,6 @@ const inputs = [
   { name: "r", label: "R (right shoulder)" },
   { name: "select", label: "Select" },
   { name: "start", label: "Start" },
-  { name: "axis_left_x", label: "Left stick X axis (push RIGHT)" },
-  { name: "axis_left_y", label: "Left stick Y axis (push DOWN)" },
-  { name: "axis_right_x", label: "Right stick X axis (push RIGHT)" },
-  { name: "axis_right_y", label: "Right stick Y axis (push DOWN)" },
 ];
 
 type InputMapping = {

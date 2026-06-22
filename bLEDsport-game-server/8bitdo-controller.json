@@ -1,0 +1,72 @@
+{
+  "device": {
+    "vendorId": 1118,
+    "productId": 654,
+    "product": "Controller"
+  },
+  "idleState": "00 14 00 00 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 00",
+  "byteCount": 20,
+  "buttons": {
+    "dpad_up": {
+      "byte": 2,
+      "idle": 0,
+      "pressed": 1
+    },
+    "dpad_down": {
+      "byte": 2,
+      "idle": 0,
+      "pressed": 2
+    },
+    "dpad_left": {
+      "byte": 2,
+      "idle": 0,
+      "pressed": 4
+    },
+    "dpad_right": {
+      "byte": 2,
+      "idle": 0,
+      "pressed": 8
+    },
+    "a": {
+      "byte": 3,
+      "idle": 0,
+      "pressed": 32
+    },
+    "b": {
+      "byte": 3,
+      "idle": 0,
+      "pressed": 16
+    },
+    "x": {
+      "byte": 3,
+      "idle": 0,
+      "pressed": 128
+    },
+    "y": {
+      "byte": 3,
+      "idle": 0,
+      "pressed": 64
+    },
+    "l": {
+      "byte": 3,
+      "idle": 0,
+      "pressed": 1
+    },
+    "r": {
+      "byte": 3,
+      "idle": 0,
+      "pressed": 2
+    },
+    "select": {
+      "byte": 2,
+      "idle": 0,
+      "pressed": 32
+    },
+    "start": {
+      "byte": 2,
+      "idle": 0,
+      "pressed": 16
+    }
+  },
+  "axes": {}
+}
