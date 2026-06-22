@@ -3,7 +3,7 @@ Description=bLEDsport
 After=network.target
 
 [Service]
-ExecStart=/home/recurse/.bun/bin/bun /home/recurse/bledsport/bLEDsport-game-server/server.js --gamepad innext-controller.json --gamepad logitech-controller.json
+ExecStart=/home/recurse/.bun/bin/bun /home/recurse/bledsport/bLEDsport-game-server/server.js --gamepad innext-controller.json --gamepad 8bitdo-controller.json
 Restart=always
 User=recurse
 WorkingDirectory=/home/recurse/bledsport/bLEDsport-game-server
