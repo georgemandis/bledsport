@@ -322,6 +322,7 @@ function musicPlay() {
     console.log('Music playback error');
     musicProc = null;
   });
+
   musicProc.on('exit', () => {
     console.log('Music playback finished');
     if (musicProc) musicPlay();

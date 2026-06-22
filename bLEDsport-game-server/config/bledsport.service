@@ -8,7 +8,7 @@ Restart=always
 User=recurse
 WorkingDirectory=/home/recurse/bledsport/bLEDsport-game-server
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_RUNTIME_DIR=/run/user/1001
 
 [Install]
 WantedBy=multi-user.target
