@@ -4,66 +4,66 @@
     "productId": 24577,
     "product": "8Bitdo SN30 Pro"
   },
-  "idleState": "00 00 0f 80 80 80 80 00 00",
-  "byteCount": 9,
+  "idleState": "03 0f 80 80 80 80 00 00 00 00 64",
+  "byteCount": 11,
   "buttons": {
     "dpad_up": {
-      "byte": 2,
+      "byte": 1,
       "idle": 15,
       "pressed": 0
     },
     "dpad_down": {
-      "byte": 2,
+      "byte": 1,
       "idle": 15,
       "pressed": 4
     },
     "dpad_left": {
-      "byte": 2,
+      "byte": 1,
       "idle": 15,
       "pressed": 6
     },
     "dpad_right": {
-      "byte": 2,
+      "byte": 1,
       "idle": 15,
       "pressed": 2
     },
     "a": {
-      "byte": 0,
+      "byte": 8,
       "idle": 0,
       "pressed": 1
     },
     "b": {
-      "byte": 0,
+      "byte": 8,
       "idle": 0,
       "pressed": 2
     },
     "x": {
-      "byte": 0,
+      "byte": 8,
       "idle": 0,
       "pressed": 8
     },
     "y": {
-      "byte": 0,
+      "byte": 8,
       "idle": 0,
       "pressed": 16
     },
     "l": {
-      "byte": 0,
+      "byte": 8,
       "idle": 0,
       "pressed": 64
     },
     "r": {
-      "byte": 0,
+      "byte": 8,
       "idle": 0,
       "pressed": 128
     },
     "select": {
-      "byte": 1,
+      "byte": 9,
       "idle": 0,
       "pressed": 4
     },
     "start": {
-      "byte": 1,
+      "byte": 9,
       "idle": 0,
       "pressed": 8
     }
