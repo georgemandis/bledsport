@@ -6,66 +6,66 @@ const path = require('path');
 
 const CONFIG_SCHEMA = {
   // Game Rules (pre-match only)
-  winsNeeded:       { default: 3,     min: 0, max: 10, step: 1, category: 'gameRules', live: false },
-  respawnMs:        { default: 2000,  min: 500, max: 5000, step: 250, category: 'gameRules', live: false },
-  randomSpawns:     { default: false, category: 'gameRules', live: false },
+  winsNeeded: { default: 3, min: 0, max: 10, step: 1, category: 'gameRules', live: false },
+  respawnMs: { default: 2000, min: 500, max: 5000, step: 250, category: 'gameRules', live: false },
+  randomSpawns: { default: false, category: 'gameRules', live: false },
   spectatorInteraction: { default: true, category: 'gameRules', live: false },
-  victoryDurationMs:{ default: 5000,  min: 2000, max: 10000, step: 500, category: 'gameRules', live: false },
-  matchDurationMs:  { default: 120000, min: 0, max: 600000, step: 15000, category: 'gameRules', live: false },
-  idleResetMs:      { default: 60000, min: 10000, max: 300000, step: 5000, category: 'gameRules', live: false },
+  victoryDurationMs: { default: 5000, min: 2000, max: 10000, step: 500, category: 'gameRules', live: false },
+  matchDurationMs: { default: 120000, min: 0, max: 600000, step: 15000, category: 'gameRules', live: false },
+  idleResetMs: { default: 60000, min: 10000, max: 300000, step: 5000, category: 'gameRules', live: false },
 
   // Movement
-  dashDistance:      { default: 5,     min: 1, max: 20, step: 1, category: 'movement', live: true },
-  dashRegenMs:      { default: 3000,  min: 500, max: 10000, step: 250, category: 'movement', live: true },
-  tickMs:           { default: 16,    min: 8, max: 100, step: 4, category: 'movement', live: false },
-  momentumIntervalMs:{ default: 60,   min: 16, max: 200, step: 4, category: 'movement', live: true },
+  dashDistance: { default: 5, min: 1, max: 20, step: 1, category: 'movement', live: true },
+  dashRegenMs: { default: 3000, min: 500, max: 10000, step: 250, category: 'movement', live: true },
+  tickMs: { default: 16, min: 8, max: 100, step: 4, category: 'movement', live: false },
+  momentumIntervalMs: { default: 60, min: 16, max: 200, step: 4, category: 'movement', live: true },
 
   // Bombs
-  bombWidth:        { default: 5,     min: 1, max: 15, step: 1, category: 'bombs', live: true },
-  bombFuseMs:       { default: 3000,  min: 500, max: 10000, step: 250, category: 'bombs', live: true },
-  bombExplodeRadius:{ default: 8,     min: 2, max: 30, step: 1, category: 'bombs', live: true },
-  bombExplodeFrames:{ default: 10,    min: 3, max: 20, step: 1, category: 'bombs', live: true },
-  bombCooldownMs:   { default: 0,  min: 0, max: 5000, step: 250, category: 'bombs', live: true },
-  bombKickSpeed:    { default: 0.5,   min: 0.1, max: 2.0, step: 0.1, category: 'bombs', live: true },
+  bombWidth: { default: 5, min: 1, max: 15, step: 1, category: 'bombs', live: true },
+  bombFuseMs: { default: 3000, min: 500, max: 10000, step: 250, category: 'bombs', live: true },
+  bombExplodeRadius: { default: 8, min: 2, max: 30, step: 1, category: 'bombs', live: true },
+  bombExplodeFrames: { default: 10, min: 3, max: 20, step: 1, category: 'bombs', live: true },
+  bombCooldownMs: { default: 0, min: 0, max: 5000, step: 250, category: 'bombs', live: true },
+  bombKickSpeed: { default: 0.5, min: 0.1, max: 2.0, step: 0.1, category: 'bombs', live: true },
   bombLeavesFlames: { default: false, category: 'bombs', live: true },
-  flameDurationMs:  { default: 3000,  min: 500, max: 10000, step: 250, category: 'bombs', live: true },
-  flameSpread:      { default: 1,     min: 0, max: 10, step: 1, category: 'bombs', live: true },
+  flameDurationMs: { default: 3000, min: 500, max: 10000, step: 250, category: 'bombs', live: true },
+  flameSpread: { default: 1, min: 0, max: 10, step: 1, category: 'bombs', live: true },
 
   // Shield
-  shieldDurationMs: { default: 1000,  min: 250, max: 5000, step: 250, category: 'shield', live: true },
-  shieldCooldownMs: { default: 5000,  min: 500, max: 15000, step: 250, category: 'shield', live: true },
+  shieldDurationMs: { default: 1000, min: 250, max: 5000, step: 250, category: 'shield', live: true },
+  shieldCooldownMs: { default: 5000, min: 500, max: 15000, step: 250, category: 'shield', live: true },
 
   // Pew-Pew
-  pewPewCooldownMs: { default: 5000,  min: 500, max: 15000, step: 250, category: 'pewPew', live: true },
-  waveSpeed:        { default: 2,     min: 1, max: 5, step: 1, category: 'pewPew', live: true },
-  waveMaxRadius:    { default: 12,    min: 4, max: 40, step: 1, category: 'pewPew', live: true },
+  pewPewCooldownMs: { default: 5000, min: 500, max: 15000, step: 250, category: 'pewPew', live: true },
+  waveSpeed: { default: 2, min: 1, max: 5, step: 1, category: 'pewPew', live: true },
+  waveMaxRadius: { default: 12, min: 4, max: 40, step: 1, category: 'pewPew', live: true },
   pewPewDestroysWalls: { default: false, category: 'pewPew', live: true },
 
   // Portals
-  portalsEnabled:   { default: true,  category: 'portals', live: true },
-  portalsMoving:    { default: false, category: 'portals', live: true },
+  portalsEnabled: { default: true, category: 'portals', live: true },
+  portalsMoving: { default: false, category: 'portals', live: true },
   portalMoveIntervalMs: { default: 15000, min: 5000, max: 60000, step: 1000, category: 'portals', live: true },
-  portalMomentum:   { default: 5,     min: 5, max: 12, step: 1, category: 'portals', live: true },
+  portalMomentum: { default: 5, min: 5, max: 12, step: 1, category: 'portals', live: true },
 
   // Walls
-  randomWallsEnabled:   { default: false, category: 'walls', live: true },
-  randomWallSpawnMs:    { default: 10000, min: 3000, max: 30000, step: 1000, category: 'walls', live: true },
-  randomWallSize:       { default: 5,   min: 1, max: 15, step: 1, category: 'walls', live: true },
-  randomWallMaxCount:   { default: 3,   min: 1, max: 8, step: 1, category: 'walls', live: true },
-  sweeperEnabled:       { default: false, category: 'walls', live: true },
-  sweeperSize:          { default: 3,   min: 1, max: 10, step: 1, category: 'walls', live: true },
-  sweeperSpeed:         { default: 0.25, min: 0.1, max: 2.0, step: 0.05, category: 'walls', live: true },
-  sweeperLethal:        { default: true, category: 'walls', live: true },
-  bombsDestroyWalls:    { default: true, category: 'walls', live: true },
-  dashThroughWalls:     { default: true, category: 'walls', live: true },
+  randomWallsEnabled: { default: false, category: 'walls', live: true },
+  randomWallSpawnMs: { default: 10000, min: 3000, max: 30000, step: 1000, category: 'walls', live: true },
+  randomWallSize: { default: 5, min: 1, max: 15, step: 1, category: 'walls', live: true },
+  randomWallMaxCount: { default: 3, min: 1, max: 8, step: 1, category: 'walls', live: true },
+  sweeperEnabled: { default: false, category: 'walls', live: true },
+  sweeperSize: { default: 3, min: 1, max: 10, step: 1, category: 'walls', live: true },
+  sweeperSpeed: { default: 0.25, min: 0.1, max: 2.0, step: 0.05, category: 'walls', live: true },
+  sweeperLethal: { default: true, category: 'walls', live: true },
+  bombsDestroyWalls: { default: true, category: 'walls', live: true },
+  dashThroughWalls: { default: true, category: 'walls', live: true },
 
   // Powerups
-  powerupSpawnMinMs:    { default: 4000, min: 1000, max: 20000, step: 500, category: 'powerups', live: true },
-  powerupSpawnMaxMs:    { default: 8000, min: 2000, max: 30000, step: 500, category: 'powerups', live: true },
-  powerupMaxCount:      { default: 1,   min: 0, max: 5, step: 1, category: 'powerups', live: true },
+  powerupSpawnMinMs: { default: 4000, min: 1000, max: 20000, step: 500, category: 'powerups', live: true },
+  powerupSpawnMaxMs: { default: 8000, min: 2000, max: 30000, step: 500, category: 'powerups', live: true },
+  powerupMaxCount: { default: 1, min: 0, max: 5, step: 1, category: 'powerups', live: true },
 
   // Display
-  ledBrightness:        { default: 255, min: 10, max: 255, step: 5, category: 'display', live: true },
+  ledBrightness: { default: 255, min: 10, max: 255, step: 5, category: 'display', live: true },
 };
 
 // Build gameConfig from defaults
@@ -237,8 +237,8 @@ const PLAYER_COLORS = [
 ];
 
 const ZONES = [
-  { name: 'left',  start: 0,   end: 57  },
-  { name: 'top',   start: 58,  end: 134 },
+  { name: 'left', start: 0, end: 57 },
+  { name: 'top', start: 58, end: 134 },
   { name: 'right', start: 135, end: 191 },
 ];
 
@@ -283,26 +283,58 @@ const songs = [
   "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-The%20Walled%20City%20[%20Soundtrack]%20[yE2b5t6Lgd8].mp3",
 ];
 
+const loseSounds = [
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-are-you-awake.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-brick-not-hit-back.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-doctor-says.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-get-up.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-go-for-the-gut.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-go-for-the-stomach.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-i-did-not-come-this-far.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-kids-someday.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-old-for-video-games.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-that-hurts-me.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-that's-why.mp"
+];
+const winSounds = [
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/win-fighting-spirit.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/win-i'm-just-glad.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/win-you-fought-with-inspiration.mp3"
+];
+const startSounds = [
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/start-after-three-days.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/start-are-you-ready.mp3",
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/start-separate-men.mp3",
+];
+
 function musicPlay() {
   if (!MUSIC_PLAYER) return;
   musicStop();
   const url = songs[Math.floor(Math.random() * songs.length)];
 
-  musicProc = nodeSpawn('mpg123', ['-o', 'alsa', '-a', 'hw:0,0', '--quiet', url], {
+  musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--quiet', url], {
     stdio: ['ignore', 'ignore', 'pipe'],
   });
 
   console.log(`Playing music: ${url}`);
 
-  musicProc.on('error', () => { 
+  musicProc.on('error', () => {
     console.log('Music playback error');
-    musicProc = null; 
+    musicProc = null;
   });
   musicProc.on('exit', () => {
     console.log('Music playback finished');
     if (musicProc) musicPlay();
   });
 }
+
+function victorySoundPlay() {
+  if (!MUSIC_PLAYER) return;
+}
+function startSoundPlay() {
+  if (!MUSIC_PLAYER) return;
+}
+function deathSoundPlay() { if (!MUSIC_PLAYER) return; }
 
 function musicStop() {
   if (!musicProc) return;
@@ -348,7 +380,7 @@ function sendToWled(pixels) {
     const off = 10 + i * 3;
     const c = pixels[i];
     if (c) {
-      buf[off]     = Math.max(0, Math.min(255, Math.round(c[0] * bri)));
+      buf[off] = Math.max(0, Math.min(255, Math.round(c[0] * bri)));
       buf[off + 1] = Math.max(0, Math.min(255, Math.round(c[1] * bri)));
       buf[off + 2] = Math.max(0, Math.min(255, Math.round(c[2] * bri)));
     }
@@ -686,7 +718,7 @@ function hitPlayer(player, attackerId, now) {
   // Check for winner (best-of-X — active in both playing and sudden death).
   // winsNeeded === 0 means infinite (pure timed mode), so skip the check.
   if (attacker && attacker !== player && gameConfig.winsNeeded > 0 &&
-      attacker.score >= gameConfig.winsNeeded) {
+    attacker.score >= gameConfig.winsNeeded) {
     declareWinner(attacker, now);
   }
 
@@ -911,13 +943,13 @@ function tick() {
         const aDir = portalA.pos === 0 ? 1 : -1;
         const aLed = portalA.pos + d * aDir;
         if (aLed >= 0 && aLed < NUM_LEDS) {
-          pixels[aLed] = [Math.round(255*(fade+swirl2)), Math.round(140*(fade+swirl2)), Math.round(20*fade)];
+          pixels[aLed] = [Math.round(255 * (fade + swirl2)), Math.round(140 * (fade + swirl2)), Math.round(20 * fade)];
         }
         // Portal B (blue)
         const bDir = portalB.pos === NUM_LEDS - 1 ? -1 : 1;
         const bLed = portalB.pos + d * bDir;
         if (bLed >= 0 && bLed < NUM_LEDS) {
-          pixels[bLed] = [Math.round(20*fade), Math.round(100*(fade+swirl2)), Math.round(255*(fade+swirl2))];
+          pixels[bLed] = [Math.round(20 * fade), Math.round(100 * (fade + swirl2)), Math.round(255 * (fade + swirl2))];
         }
       }
     }
@@ -948,7 +980,7 @@ function tick() {
 
   // --- Match timer expiry (only during normal play; sudden death has no timer) ---
   if (gamePhase === 'playing' && gameConfig.matchDurationMs > 0 &&
-      now - matchStartAt >= gameConfig.matchDurationMs) {
+    now - matchStartAt >= gameConfig.matchDurationMs) {
     const leader = soleLeader();
     if (leader) {
       declareWinner(leader, now);
@@ -1093,17 +1125,17 @@ function tick() {
     portalBlinking = timeSinceMove >= interval - 2000;
 
     if (timeSinceMove >= interval) {
-        // Pick two random positions with minimum distance of 20 LEDs apart
-        const MIN_DIST = 20;
-        for (let attempt = 0; attempt < 50; attempt++) {
-          const a = Math.floor(Math.random() * NUM_LEDS);
-          const b = Math.floor(Math.random() * NUM_LEDS);
-          if (Math.abs(a - b) >= MIN_DIST && !isWallAt(a) && !isWallAt(b)) {
-            portalA.pos = a;
-            portalB.pos = b;
-            break;
-          }
+      // Pick two random positions with minimum distance of 20 LEDs apart
+      const MIN_DIST = 20;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const a = Math.floor(Math.random() * NUM_LEDS);
+        const b = Math.floor(Math.random() * NUM_LEDS);
+        if (Math.abs(a - b) >= MIN_DIST && !isWallAt(a) && !isWallAt(b)) {
+          portalA.pos = a;
+          portalB.pos = b;
+          break;
         }
+      }
       lastPortalMoveAt = now;
       portalBlinking = false;
     }
@@ -1242,13 +1274,13 @@ function tick() {
       const aDir = portalA.pos === 0 ? 1 : -1;
       const aLed = portalA.pos + d * aDir;
       if (aLed >= 0 && aLed < NUM_LEDS) {
-        pixels[aLed] = [Math.round(255*(fade+swirl2)), Math.round(140*(fade+swirl2)), Math.round(20*fade)];
+        pixels[aLed] = [Math.round(255 * (fade + swirl2)), Math.round(140 * (fade + swirl2)), Math.round(20 * fade)];
       }
       // Portal B (blue) — glow extends inward
       const bDir = portalB.pos === NUM_LEDS - 1 ? -1 : 1;
       const bLed = portalB.pos + d * bDir;
       if (bLed >= 0 && bLed < NUM_LEDS) {
-        pixels[bLed] = [Math.round(20*fade), Math.round(100*(fade+swirl2)), Math.round(255*(fade+swirl2))];
+        pixels[bLed] = [Math.round(20 * fade), Math.round(100 * (fade + swirl2)), Math.round(255 * (fade + swirl2))];
       }
     }
   }
@@ -1493,16 +1525,16 @@ function hslToRgb(h, s, l) {
   else {
     const hue2rgb = (p, q, t) => {
       if (t < 0) t += 1; if (t > 1) t -= 1;
-      if (t < 1/6) return p + (q - p) * 6 * t;
-      if (t < 1/2) return q;
-      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
       return p;
     };
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1/3);
+    r = hue2rgb(p, q, h + 1 / 3);
     g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1/3);
+    b = hue2rgb(p, q, h - 1 / 3);
   }
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
@@ -1556,8 +1588,8 @@ function packStateForExternal(msg) {
 
   const phase = msg.gamePhase === 'waiting' ? 0
     : msg.gamePhase === 'playing' ? 1
-    : msg.gamePhase === 'suddenDeath' ? 3
-    : 2;
+      : msg.gamePhase === 'suddenDeath' ? 3
+        : 2;
   const victoryName = phase === 2 ? (msg.victoryPlayerName || '') : '';
   const nameBytes = Buffer.from(victoryName, 'utf8');
   const matchDurationSec = Math.min(65535, Math.round((msg.matchDurationMs || 0) / 1000));
@@ -1738,7 +1770,7 @@ function connectExternal() {
           const intensity = Math.max(0, Math.min(1, input.intensity || 0));
           orbGlow = { pos, intensity, at: Date.now() };
         }
-      } catch {}
+      } catch { }
     };
     ws.onclose = () => {
       externalWs = null;
@@ -1858,7 +1890,7 @@ const server = Bun.serve({
         const id = clients.get(ws);
         if (!id) return; // spectator, ignore game inputs
         handleInput(id, input);
-      } catch {}
+      } catch { }
     },
     close(ws) {
       const id = clients.get(ws);
