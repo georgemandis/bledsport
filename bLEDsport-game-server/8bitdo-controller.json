@@ -1,71 +1,71 @@
 {
   "device": {
-    "vendorId": 1118,
-    "productId": 654,
-    "product": "Controller"
+    "vendorId": 11720,
+    "productId": 24577,
+    "product": "8Bitdo SN30 Pro"
   },
-  "idleState": "00 14 00 00 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 00",
-  "byteCount": 20,
+  "idleState": "00 00 0f 80 80 80 80 00 00",
+  "byteCount": 9,
   "buttons": {
     "dpad_up": {
       "byte": 2,
-      "idle": 0,
-      "pressed": 1
+      "idle": 15,
+      "pressed": 0
     },
     "dpad_down": {
       "byte": 2,
-      "idle": 0,
-      "pressed": 2
+      "idle": 15,
+      "pressed": 4
     },
     "dpad_left": {
       "byte": 2,
-      "idle": 0,
-      "pressed": 4
+      "idle": 15,
+      "pressed": 6
     },
     "dpad_right": {
       "byte": 2,
-      "idle": 0,
-      "pressed": 8
+      "idle": 15,
+      "pressed": 2
     },
     "a": {
-      "byte": 3,
-      "idle": 0,
-      "pressed": 32
-    },
-    "b": {
-      "byte": 3,
-      "idle": 0,
-      "pressed": 16
-    },
-    "x": {
-      "byte": 3,
-      "idle": 0,
-      "pressed": 128
-    },
-    "y": {
-      "byte": 3,
-      "idle": 0,
-      "pressed": 64
-    },
-    "l": {
-      "byte": 3,
+      "byte": 0,
       "idle": 0,
       "pressed": 1
     },
-    "r": {
-      "byte": 3,
+    "b": {
+      "byte": 0,
       "idle": 0,
       "pressed": 2
     },
-    "select": {
-      "byte": 2,
+    "x": {
+      "byte": 0,
       "idle": 0,
-      "pressed": 32
+      "pressed": 8
     },
-    "start": {
-      "byte": 2,
+    "y": {
+      "byte": 0,
       "idle": 0,
       "pressed": 16
+    },
+    "l": {
+      "byte": 0,
+      "idle": 0,
+      "pressed": 64
+    },
+    "r": {
+      "byte": 0,
+      "idle": 0,
+      "pressed": 128
+    },
+    "select": {
+      "byte": 1,
+      "idle": 0,
+      "pressed": 4
+    },
+    "start": {
+      "byte": 1,
+      "idle": 0,
+      "pressed": 8
     }
   },
   "axes": {}
