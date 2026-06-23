@@ -297,7 +297,7 @@ const dieSounds = [
   "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-kids-someday.mp3",
   "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-old-for-video-games.mp3",
   "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-that-hurts-me.mp3",
-  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-that's-why.mp"
+  "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-that's-why.mp3"
 ];
 const winSounds = [
   "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/win-fighting-spirit.mp3",
@@ -777,6 +777,7 @@ function soleLeader() {
 
 // Transition into the victory phase for a given winning player.
 function declareWinner(player, now) {
+  musicStop();
   gamePhase = 'victory';
   victoryStart = now;
   victoryColor = player.color;
