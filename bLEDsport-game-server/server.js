@@ -249,8 +249,11 @@ if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
 // --- Speech (cross-platform TTS) ---
 const { execFileSync, spawn: nodeSpawn } = require('child_process');
 
-// --- Music (cross-platform) ---
+// --- Sounds ---
 let musicProc = null;
+let winSoundProc = null;
+let dieSoundProc = null;
+let startSoundProc = null;
 
 function detectMusicPlayer() {
   try { execFileSync('which', ['mpg123']); return 'mpg123'; }
@@ -283,7 +286,7 @@ const songs = [
   "https://pub-9a24d839deaf490c9fcdae7574ff0135.r2.dev/Bloodsport-The%20Walled%20City%20[%20Soundtrack]%20[yE2b5t6Lgd8].mp3",
 ];
 
-const loseSounds = [
+const dieSounds = [
   "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-are-you-awake.mp3",
   "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-brick-not-hit-back.mp3",
   "https://pub-b0e97a2ddf0441d09774769befcfd4e6.r2.dev/lose-doctor-says.mp3",
@@ -329,19 +332,89 @@ function musicPlay() {
   });
 }
 
-function victorySoundPlay() {
+function winSoundPlay() {
   if (!MUSIC_PLAYER) return;
+
+  const url = winSounds[Math.floor(Math.random() * winSounds.length)];
+
+  winSoundProc = nodeSpawn('mpg123', ['-o', 'pulse', '--quiet', url], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+
+  console.log(`Playing win sound: ${url}`);
+
+  winSoundProc.on('error', () => {
+    console.log('win playback error');
+    winSoundProc = null;
+  });
+
+  winSoundProc.on('exit', () => {
+    console.log('win playback finished');
+    winSoundProc = null;
+  });
 }
+
 function startSoundPlay() {
   if (!MUSIC_PLAYER) return;
+
+  const url = startSounds[Math.floor(Math.random() * startSounds.length)];
+
+  startSoundProc = nodeSpawn('mpg123', ['-o', 'pulse', '--quiet', url], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+
+  console.log(`Playing start sound: ${url}`);
+
+  startSoundProc.on('error', () => {
+    console.log('start playback error');
+    startSoundProc = null;
+  });
+
+  startSoundProc.on('exit', () => {
+    console.log('start playback finished');
+    startSoundProc = null;
+  });
 }
-function deathSoundPlay() { if (!MUSIC_PLAYER) return; }
+
+function deathSoundPlay() {
+  if (!MUSIC_PLAYER) return;
+
+  const url = dieSounds[Math.floor(Math.random() * dieSounds.length)];
+
+  dieSoundProc = nodeSpawn('mpg123', ['-o', 'pulse', '--quiet', url], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+
+  console.log(`Playing die sound: ${url}`);
+
+  dieSoundProc.on('error', () => {
+    console.log('die playback error');
+    dieSoundProc = null;
+  });
+
+  dieSoundProc.on('exit', () => {
+    console.log('die playback finished');
+    dieSoundProc = null;
+  });
+}
 
 function musicStop() {
   if (!musicProc) return;
   const proc = musicProc;
   musicProc = null;
   proc.kill();
+}
+
+function stopSounds() {
+  if (dieSoundProc) {
+    dieSoundProc.kill()
+  }
+  if (winSoundProc) {
+    winSoundProc.kill()
+  }
+  if (startSoundProc) {
+    startSoundProc.kill()
+  }
 }
 
 // --- WLED connection (DDP over UDP) ---
@@ -452,6 +525,8 @@ function resetGame() {
   portalBlinking = false;
   orbGlow = null;
   musicStop();
+  stopSounds();
+
   console.log('Game reset — waiting for players');
 }
 
@@ -493,6 +568,11 @@ function startGame() {
   portalBlinking = false;
   orbGlow = null;
   if (!musicProc) musicPlay();
+
+  // if more than 1 player is joining, play start sound
+  if (players.size > 1) {
+    startSoundPlay();
+  }
   console.log(`Game started with ${players.size} players`);
 }
 
@@ -701,6 +781,7 @@ function declareWinner(player, now) {
   victoryStart = now;
   victoryColor = player.color;
   victoryPlayerName = player.name;
+  winSoundPlay();
   console.log(`${player.name} wins!`);
 }
 
@@ -715,12 +796,13 @@ function hitPlayer(player, attackerId, now) {
   const attacker = players.get(attackerId);
   if (attacker && attacker !== player) attacker.score++;
 
-
   // Check for winner (best-of-X — active in both playing and sudden death).
   // winsNeeded === 0 means infinite (pure timed mode), so skip the check.
   if (attacker && attacker !== player && gameConfig.winsNeeded > 0 &&
     attacker.score >= gameConfig.winsNeeded) {
     declareWinner(attacker, now);
+  } else {
+    deathSoundPlay();
   }
 
   // Sudden death: first kill that creates a sole leader ends the match
