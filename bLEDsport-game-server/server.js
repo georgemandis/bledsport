@@ -525,7 +525,6 @@ function resetGame() {
   portalBlinking = false;
   orbGlow = null;
   musicStop();
-  stopSounds();
 
   console.log('Game reset — waiting for players');
 }
