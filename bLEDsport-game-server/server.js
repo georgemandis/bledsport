@@ -9,7 +9,8 @@ const CONFIG_SCHEMA = {
   winsNeeded: { default: 3, min: 0, max: 10, step: 1, category: 'gameRules', live: false },
   respawnMs: { default: 2000, min: 500, max: 5000, step: 250, category: 'gameRules', live: false },
   randomSpawns: { default: false, category: 'gameRules', live: false },
-  spectatorInteraction: { default: true, category: 'gameRules', live: false },
+  spectatorInteraction: { default: false, category: 'gameRules', live: false },
+  handOfGod: { default: true, category: 'gameRules', live: false },
   victoryDurationMs: { default: 5000, min: 2000, max: 10000, step: 500, category: 'gameRules', live: false },
   matchDurationMs: { default: 120000, min: 0, max: 600000, step: 15000, category: 'gameRules', live: false },
   idleResetMs: { default: 60000, min: 10000, max: 300000, step: 5000, category: 'gameRules', live: false },
@@ -1832,7 +1833,7 @@ function connectExternal() {
           return;
         }
         if (input.type === 'god_bomb') {
-          if (!gameConfig.spectatorInteraction) return;
+          if (!gameConfig.handOfGod) return;
           if (gamePhase !== 'playing') return;
           const pos = Math.round(input.pos);
           if (pos < 0 || pos >= NUM_LEDS) return;
@@ -1954,7 +1955,7 @@ const server = Bun.serve({
         }
         // Hand of God — spectators only
         if (input.type === 'god_bomb') {
-          if (!gameConfig.spectatorInteraction) return;
+          if (!gameConfig.handOfGod) return;
           const id = clients.get(ws);
           if (id) return; // players can't use this
           if (gamePhase !== 'playing') return;
