@@ -315,7 +315,8 @@ function musicPlay() {
   musicStop();
   const url = songs[Math.floor(Math.random() * songs.length)];
 
-  musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--quiet', url], {
+  // scale music volume down to 50% so we can hear sound effects
+  musicProc = nodeSpawn('mpg123', ['-o', 'pulse', '--scale', '16384', '--quiet', url], {
     stdio: ['ignore', 'ignore', 'pipe'],
   });
 
