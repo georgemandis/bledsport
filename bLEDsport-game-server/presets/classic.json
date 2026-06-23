@@ -5,6 +5,8 @@
   "randomSpawns": false,
   "spectatorInteraction": false,
   "handOfGod": true,
+  "handOfGodWall": true,
+  "handOfGodPowerup": true,
   "victoryDurationMs": 5000,
   "idleResetMs": 60000,
   "dashDistance": 5,

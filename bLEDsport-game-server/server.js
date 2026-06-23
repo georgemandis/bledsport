@@ -11,6 +11,8 @@ const CONFIG_SCHEMA = {
   randomSpawns: { default: false, category: 'gameRules', live: false },
   spectatorInteraction: { default: false, category: 'gameRules', live: false },
   handOfGod: { default: true, category: 'gameRules', live: false },
+  handOfGodWall: { default: true, category: 'gameRules', live: false },
+  handOfGodPowerup: { default: true, category: 'gameRules', live: false },
   victoryDurationMs: { default: 5000, min: 2000, max: 10000, step: 500, category: 'gameRules', live: false },
   matchDurationMs: { default: 120000, min: 0, max: 600000, step: 15000, category: 'gameRules', live: false },
   idleResetMs: { default: 60000, min: 10000, max: 300000, step: 5000, category: 'gameRules', live: false },
@@ -670,12 +672,12 @@ function getZone(pos) {
 }
 
 // --- Wall collision helpers ---
+// Walls in randomWalls[] always collide/render; randomWallsEnabled only gates
+// the auto-spawn timer (spectator-dropped god walls populate the array directly).
 function isWallAt(pos) {
-  if (gameConfig.randomWallsEnabled) {
-    for (const w of randomWalls) {
-      const half = Math.floor(w.size / 2);
-      if (pos >= w.pos - half && pos <= w.pos + half) return true;
-    }
+  for (const w of randomWalls) {
+    const half = Math.floor(w.size / 2);
+    if (pos >= w.pos - half && pos <= w.pos + half) return true;
   }
   if (gameConfig.sweeperEnabled && !gameConfig.sweeperLethal) {
     const sStart = Math.floor(sweeper.pos);
@@ -686,11 +688,9 @@ function isWallAt(pos) {
 }
 
 function isStaticWallAt(pos) {
-  if (gameConfig.randomWallsEnabled) {
-    for (const w of randomWalls) {
-      const half = Math.floor(w.size / 2);
-      if (pos >= w.pos - half && pos <= w.pos + half) return true;
-    }
+  for (const w of randomWalls) {
+    const half = Math.floor(w.size / 2);
+    if (pos >= w.pos - half && pos <= w.pos + half) return true;
   }
   return false;
 }
@@ -1371,14 +1371,12 @@ function tick() {
   }
 
   // Random walls (orange)
-  if (gameConfig.randomWallsEnabled) {
-    for (const w of randomWalls) {
-      const half = Math.floor(w.size / 2);
-      for (let d = -half; d <= half; d++) {
-        const led = w.pos + d;
-        if (led >= 0 && led < NUM_LEDS) {
-          pixels[led] = [200, 120, 20];
-        }
+  for (const w of randomWalls) {
+    const half = Math.floor(w.size / 2);
+    for (let d = -half; d <= half; d++) {
+      const led = w.pos + d;
+      if (led >= 0 && led < NUM_LEDS) {
+        pixels[led] = [200, 120, 20];
       }
     }
   }
@@ -1847,6 +1845,20 @@ function connectExternal() {
             godBomb: true,
           });
         }
+        if (input.type === 'god_wall') {
+          if (!gameConfig.handOfGodWall) return;
+          if (gamePhase !== 'playing') return;
+          const pos = Math.round(input.pos);
+          if (pos < 0 || pos >= NUM_LEDS) return;
+          randomWalls.push({ pos, size: gameConfig.randomWallSize });
+        }
+        if (input.type === 'god_powerup') {
+          if (!gameConfig.handOfGodPowerup) return;
+          if (gamePhase !== 'playing') return;
+          const pos = Math.round(input.pos);
+          if (pos < 0 || pos >= NUM_LEDS) return;
+          powerups.push({ pos, type: 'blast', spawnTime: Date.now() });
+        }
         if (input.type === 'orb_glow') {
           if (!gameConfig.spectatorInteraction) return;
           if (gamePhase !== 'playing') return;
@@ -1970,6 +1982,26 @@ const server = Bun.serve({
             explodeFrame: 0,
             godBomb: true,
           });
+          return;
+        }
+        if (input.type === 'god_wall') {
+          if (!gameConfig.handOfGodWall) return;
+          const id = clients.get(ws);
+          if (id) return; // players can't use this
+          if (gamePhase !== 'playing') return;
+          const pos = Math.round(input.pos);
+          if (pos < 0 || pos >= NUM_LEDS) return;
+          randomWalls.push({ pos, size: gameConfig.randomWallSize });
+          return;
+        }
+        if (input.type === 'god_powerup') {
+          if (!gameConfig.handOfGodPowerup) return;
+          const id = clients.get(ws);
+          if (id) return; // players can't use this
+          if (gamePhase !== 'playing') return;
+          const pos = Math.round(input.pos);
+          if (pos < 0 || pos >= NUM_LEDS) return;
+          powerups.push({ pos, type: 'blast', spawnTime: Date.now() });
           return;
         }
         const id = clients.get(ws);
