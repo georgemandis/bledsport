@@ -641,7 +641,9 @@ function spawnPoint() {
     for (let i = 0; i < w.size; i++) blocked.add(w.pos + i);
   }
 
-  for (let d = 0; d < NUM_LEDS; d++) {
+  // Search outward only as far as the strip actually reaches from SPAWN_POINT.
+  const maxDist = Math.max(SPAWN_POINT, NUM_LEDS - 1 - SPAWN_POINT);
+  for (let d = 0; d <= maxDist; d++) {
     const cands = d === 0 ? [SPAWN_POINT] : [SPAWN_POINT - d, SPAWN_POINT + d];
     for (const cand of cands) {
       if (cand >= 0 && cand < NUM_LEDS && !blocked.has(cand)) return cand;
@@ -1634,7 +1636,7 @@ function serializePlayers() {
     return {
       id: p.id, pos: p.pos, color: p.color, width: p.width,
       hasDash: p.hasDash, alive: p.alive, score: p.score, name: p.name,
-      invuln: Date.now() < p.invulnUntil,
+      invuln: now < p.invulnUntil,
       shieldActive: p.shieldActive,
       bombReady,
       blastCharges: blastReady, blastMax: p.blastMaxCharges,
