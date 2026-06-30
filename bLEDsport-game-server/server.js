@@ -16,6 +16,7 @@ const CONFIG_SCHEMA = {
   victoryDurationMs: { default: 5000, min: 2000, max: 10000, step: 500, category: 'gameRules', live: false },
   matchDurationMs: { default: 120000, min: 0, max: 600000, step: 15000, category: 'gameRules', live: false },
   idleResetMs: { default: 60000, min: 10000, max: 300000, step: 5000, category: 'gameRules', live: false },
+  spawnInvulnMs: { default: 3000, min: 0, max: 10000, step: 250, category: 'gameRules', live: true },
 
   // Movement
   dashDistance: { default: 5, min: 1, max: 20, step: 1, category: 'movement', live: true },
@@ -630,6 +631,7 @@ function createPlayer(id) {
     width: 1,
     alive: true,
     respawnAt: 0,
+    invulnUntil: 0,
     score: 0,
     name: `P${id}`,
     lastDelta: 0,
