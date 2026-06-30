@@ -1898,6 +1898,12 @@ const server = Bun.serve({
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return new Response(Bun.file('./index.html'));
     }
+    if (url.pathname === '/bledsport-header.png') {
+      return new Response(Bun.file('./bledsport-header.png'));
+    }
+    if (url.pathname === '/favicon.ico') {
+      return new Response(Bun.file('./favicon.ico'));
+    }
     return new Response('Not found', { status: 404 });
   },
   websocket: {

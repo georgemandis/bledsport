@@ -4,223 +4,341 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>bLEDsport - Game Master</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0a0a1a;
-    color: #ccc;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
+  /* ── Design tokens ───────────────────────────────────────────
+     Tuned for legibility on a dark operator panel: brighter text,
+     larger type, generous spacing, AA-contrast accents.            */
+  :root {
+    /* Neutral gray/black surfaces (less blue-purple) */
+    --bg:        #0c0c0e;
+    --surface:   #1a1a1d;
+    --surface-2: #242428;
+    --line:      #3a3a40;
+    --line-soft: #2a2a2e;
+
+    /* Text pushed toward white for higher contrast */
+    --text:      #f4f5f7;   /* primary label text — near-white on --bg */
+    --text-dim:  #c2c4cc;   /* secondary / hints */
+    --text-muted:#8a8c94;   /* disabled / placeholder */
+
+    /* Deep crimson accent — values, on-states, LIVE badge */
+    --accent:    #c1272d;   /* deep crimson */
+    --accent-on: #e6403f;   /* brighter crimson for knobs/handles on dark */
+    --accent-dim:#5c1518;   /* muted crimson for track-on backgrounds */
+    --warn:      #ffd24a;
+    --prematch:  #f0a020;   /* amber — PRE-MATCH badge (distinct from red) */
+    --danger:    #ff6b6b;   /* delete X (kept lighter so it reads as an action) */
+    --pink:      #ff7ac4;
+
+    --focus:     #8fd0ff;   /* visible keyboard focus ring */
+    --radius:    8px;
   }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 16px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible focus for keyboard users across all interactive elements */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
   .layout {
     display: grid;
-    grid-template-columns: 1fr 320px;
+    grid-template-columns: 1fr 360px;
     height: 100vh;
   }
   .config-panel {
     overflow-y: auto;
-    padding: 16px 20px;
+    padding: 28px 32px;
   }
-  .config-panel h1 {
+  .config-panel h1.app-title {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .app-logo {
+    display: block;
+    width: clamp(260px, 38vw, 420px);
+    height: auto;
+  }
+  .app-subtitle {
     font-size: 1.1rem;
-    color: #6f6;
-    margin-bottom: 12px;
-    letter-spacing: 2px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    font-weight: bold;
+    padding-bottom: 10px;
   }
+
+  /* ── Preset bar ─────────────────────────────────────────────── */
   .preset-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    background: #111125;
-    padding: 10px 12px;
-    border-radius: 6px;
-    margin-bottom: 16px;
+    gap: 10px;
+    background: var(--surface);
+    padding: 14px 16px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
     align-items: center;
   }
   .preset-bar-label {
-    color: #666;
-    font-size: 11px;
+    color: var(--text-dim);
+    font-size: 13px;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-right: 4px;
+    letter-spacing: 1.5px;
+    margin-right: 6px;
   }
   .preset-btn {
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    padding: 4px 10px;
-    background: #1a1a2e;
-    color: #aaa;
-    border: 1px solid #333;
-    border-radius: 3px;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 16px;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
     cursor: pointer;
     position: relative;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
   }
-  .preset-btn:hover { border-color: #666; color: #fff; }
-  .preset-btn.active { border-color: #4f4; color: #4f4; }
-  .preset-btn.action-save { border-color: #c90; color: #c90; }
+  .preset-btn:hover { border-color: #6a6a9a; color: #fff; }
+  .preset-btn.active { border-color: var(--accent-on); color: var(--accent-on); background: #2a0c0d; }
+  .preset-btn.action-save { border-color: var(--warn); color: var(--warn); }
   .preset-btn.action-save:hover { background: #2a2000; }
-  .preset-btn.action-randomize { border-color: #f6c; color: #f6c; }
+  .preset-btn.action-randomize { border-color: var(--pink); color: var(--pink); }
   .preset-btn.action-randomize:hover { background: #2a0020; }
-  .preset-btn.action-reset { border-color: #888; color: #888; }
+  .preset-btn.action-reset { border-color: var(--text-muted); color: var(--text-dim); }
   .preset-btn.action-reset:hover { background: #1a1a1a; }
   .preset-delete {
-    font-size: 9px;
-    margin-left: 5px;
-    color: #a44;
+    font-size: 14px;
+    line-height: 1;
+    margin-left: 8px;
+    color: var(--danger);
     cursor: pointer;
     vertical-align: middle;
   }
-  .preset-delete:hover { color: #f66; }
-  .category {
-    border: 1px solid #222;
+  .preset-delete:hover { color: #ff9a9a; }
+
+  /* ── Accordion toolbar (Expand All / Collapse All) ──────────── */
+  .accordion-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 14px;
+  }
+  .expand-all-btn {
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    padding: 8px 14px;
+    background: var(--surface-2);
+    color: var(--text-dim);
+    border: 1px solid var(--line);
     border-radius: 6px;
-    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .expand-all-btn:hover { border-color: #6a6a72; color: var(--text); }
+
+  /* ── Category cards ─────────────────────────────────────────── */
+  .category {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    margin-bottom: 18px;
     overflow: hidden;
+    background: #141416;
   }
   .category-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
-    background: #111125;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line-soft);
+    border-left: 3px solid var(--accent-dim);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
   }
+  .category-header:hover { background: var(--surface-2); }
   .category-header h3 {
-    font-size: 12px;
-    letter-spacing: 1px;
-    color: #ddd;
+    font-size: 16px;
+    letter-spacing: 1.5px;
+    color: var(--text);
+    font-weight: bold;
   }
+  /* Badge hugs the right edge; caret + title sit on the left */
+  .category-header .badge { margin-left: auto; }
+  .cat-caret {
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1;
+    transition: transform 0.2s;
+  }
+  /* Collapsed: rotate caret to point right and hide the body */
+  .category.collapsed .cat-caret { transform: rotate(-90deg); }
+  .category.collapsed .category-body { display: none; }
+  .category.collapsed .category-header { border-bottom: none; }
   .badge {
-    font-size: 9px;
-    padding: 2px 6px;
-    border-radius: 3px;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
     letter-spacing: 1px;
     font-weight: bold;
   }
-  .badge-live { background: #0a2a0a; color: #4f4; border: 1px solid #2a4a2a; }
-  .badge-prematch { background: #2a0a0a; color: #f66; border: 1px solid #4a2a2a; }
-  .category-body { padding: 8px 12px; }
+  .badge-live { background: #2a0c0d; color: var(--accent-on); border: 1px solid #5c2024; }
+  .badge-prematch { background: #2c1f08; color: var(--prematch); border: 1px solid #5a4220; }
+  .category-body { padding: 8px 18px; }
+
+  /* ── Slider rows ────────────────────────────────────────────── */
   .control {
     display: grid;
-    grid-template-columns: 140px 1fr 60px;
+    grid-template-columns: 180px 1fr 72px;
     align-items: center;
-    gap: 8px;
-    padding: 4px 0;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line-soft);
   }
+  .control:last-child, .toggle-row:last-child { border-bottom: none; }
   .control label {
-    font-size: 11px;
-    color: #999;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 15px;
+    color: var(--text);
+    /* Wrap long labels instead of truncating — never hide text */
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
   .control input[type="range"] {
     width: 100%;
-    accent-color: #4f4;
+    height: 22px;
+    accent-color: var(--accent-on);
     background: transparent;
+    cursor: pointer;
   }
-  .control input[type="range"]:disabled { accent-color: #644; opacity: 0.5; }
+  .control input[type="range"]:disabled { accent-color: #5a4a4a; opacity: 0.5; cursor: not-allowed; }
   .control .value {
-    font-size: 11px;
-    color: #6f6;
+    font-size: 15px;
+    color: var(--accent-on);
     text-align: right;
     font-weight: bold;
   }
-  .control.disabled label { color: #555; }
-  .control.disabled .value { color: #644; }
+  .control.disabled label { color: var(--text-muted); }
+  .control.disabled .value { color: #6a5a5a; }
+
+  /* ── Toggle rows ────────────────────────────────────────────── */
   .toggle-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px 0;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line-soft);
   }
   .toggle-row label {
-    font-size: 11px;
-    color: #999;
+    font-size: 15px;
+    color: var(--text);
+    cursor: pointer;
   }
-  .toggle-row.disabled label { color: #555; }
+  .toggle-row.disabled label { color: var(--text-muted); }
   .toggle {
-    width: 36px;
-    height: 18px;
-    background: #333;
-    border-radius: 9px;
+    width: 52px;
+    height: 28px;
+    background: #3a3a40;
+    border-radius: 14px;
     position: relative;
     cursor: pointer;
     transition: background 0.2s;
+    flex-shrink: 0;
   }
-  .toggle.on { background: #2a6a2a; }
-  .toggle.disabled { opacity: 0.4; cursor: not-allowed; }
+  .toggle.on { background: var(--accent-dim); }
+  .toggle.disabled { opacity: 0.45; cursor: not-allowed; }
   .toggle::after {
     content: '';
     position: absolute;
-    width: 14px;
-    height: 14px;
-    background: #888;
+    width: 22px;
+    height: 22px;
+    background: #c2c6d6;
     border-radius: 50%;
-    top: 2px;
-    left: 2px;
+    top: 3px;
+    left: 3px;
     transition: left 0.2s, background 0.2s;
   }
-  .toggle.on::after { left: 20px; background: #6f6; }
+  .toggle.on::after { left: 27px; background: var(--accent-on); }
+
+  /* ── Live view panel ────────────────────────────────────────── */
   .live-panel {
-    background: #0d0d20;
-    border-left: 1px solid #1a1a2e;
+    background: #141416;
+    border-left: 1px solid var(--line-soft);
     display: flex;
     flex-direction: column;
-    padding: 12px;
+    padding: 20px;
   }
   .live-panel h2 {
-    font-size: 12px;
-    color: #666;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
+    font-size: 15px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    margin-bottom: 14px;
     text-align: center;
   }
   canvas {
     width: 100%;
-    border-radius: 6px;
-    background: #050510;
+    border-radius: var(--radius);
+    background: #070708;
   }
   .game-status {
     text-align: center;
-    padding: 8px;
-    margin-top: 8px;
-    font-size: 12px;
+    padding: 12px;
+    margin-top: 14px;
+    font-size: 16px;
     letter-spacing: 2px;
-    border-radius: 4px;
+    border-radius: 6px;
+    font-weight: bold;
   }
-  .game-status.waiting { color: #888; background: #111; }
-  .game-status.playing { color: #4f4; background: #0a1a0a; }
-  .game-status.victory { color: #ff0; background: #1a1a00; }
+  .game-status.waiting { color: var(--text-dim); background: #1f1f23; }
+  .game-status.playing { color: var(--accent-on); background: #2a0c0d; }
+  .game-status.victory { color: var(--warn); background: #242400; }
   .scoreboard {
-    margin-top: 10px;
-    font-size: 11px;
+    margin-top: 16px;
+    font-size: 15px;
   }
   .scoreboard-entry {
     display: flex;
     align-items: center;
-    padding: 3px 0;
-    gap: 6px;
+    padding: 7px 0;
+    gap: 10px;
   }
   .color-dot {
-    width: 8px;
-    height: 8px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .score-name { flex: 1; color: #aaa; }
-  .score-value { color: #6f6; font-weight: bold; }
+  .score-name { flex: 1; color: var(--text); }
+  .score-value { color: var(--accent-on); font-weight: bold; }
   .conn-status {
     text-align: center;
-    font-size: 10px;
-    padding: 4px;
+    font-size: 13px;
+    padding: 8px;
     margin-top: auto;
+    color: var(--text-dim);
   }
 </style>
 </head>
 <body>
 <div class="layout">
   <div class="config-panel">
-    <h1>bLEDsport CONFIG</h1>
+    <h1 class="app-title">
+      <img src="/bledsport-header.png" alt="bLEDsport" class="app-logo">
+      <span class="app-subtitle">CONFIG</span>
+    </h1>
     <div class="preset-bar" id="preset-bar"></div>
     <div id="categories"></div>
   </div>
@@ -379,6 +497,32 @@ function buildCategories() {
   const container = document.getElementById('categories');
   container.innerHTML = '';
 
+  // Accordion toolbar: one button toggles all sections open/closed.
+  // Label reflects the next action based on whether any section is open.
+  const toolbar = document.createElement('div');
+  toolbar.className = 'accordion-toolbar';
+  const expandBtn = document.createElement('button');
+  expandBtn.className = 'expand-all-btn';
+  toolbar.appendChild(expandBtn);
+  container.appendChild(toolbar);
+
+  const syncExpandBtn = () => {
+    const cats = container.querySelectorAll('.category');
+    const anyOpen = [...cats].some(c => !c.classList.contains('collapsed'));
+    expandBtn.textContent = anyOpen ? 'Collapse All' : 'Expand All';
+  };
+  expandBtn.addEventListener('click', () => {
+    const cats = container.querySelectorAll('.category');
+    const anyOpen = [...cats].some(c => !c.classList.contains('collapsed'));
+    cats.forEach(c => {
+      c.classList.toggle('collapsed', anyOpen); // anyOpen → collapse all; else expand all
+      c.querySelector('.category-header').setAttribute('aria-expanded', String(!anyOpen));
+    });
+    syncExpandBtn();
+  });
+  // Expose so individual header toggles can keep the button label in sync
+  window.__syncExpandBtn = syncExpandBtn;
+
   // Group keys by category
   const groups = {};
   for (const key of Object.keys(schema)) {
@@ -392,14 +536,27 @@ function buildCategories() {
     if (!keys) continue;
     const isLive = keys.some(k => schema[k].live);
     const div = document.createElement('div');
-    div.className = 'category';
+    div.className = 'category collapsed'; // all sections start collapsed
     div.innerHTML = `
-      <div class="category-header">
+      <div class="category-header" role="button" tabindex="0" aria-expanded="false" aria-controls="cat-${cat}">
+        <span class="cat-caret" aria-hidden="true">▾</span>
         <h3>${CATEGORY_NAMES[cat] || cat}</h3>
         <span class="badge ${isLive ? 'badge-live' : 'badge-prematch'}">${isLive ? 'LIVE' : 'PRE-MATCH'}</span>
       </div>
       <div class="category-body" id="cat-${cat}"></div>`;
     container.appendChild(div);
+
+    // Accordion: click/Enter/Space toggles this section open or closed (each independent)
+    const header = div.querySelector('.category-header');
+    const toggleCollapse = () => {
+      const collapsed = div.classList.toggle('collapsed');
+      header.setAttribute('aria-expanded', String(!collapsed));
+      if (window.__syncExpandBtn) window.__syncExpandBtn();
+    };
+    header.addEventListener('click', toggleCollapse);
+    header.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse(); }
+    });
 
     const body = div.querySelector('.category-body');
     for (const key of keys) {
@@ -411,6 +568,7 @@ function buildCategories() {
       }
     }
   }
+  syncExpandBtn(); // set initial label (all start collapsed → "Expand All")
 }
 
 function formatLabel(key) {
