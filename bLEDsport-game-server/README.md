@@ -48,6 +48,15 @@ Spectators (browser clients that haven't joined) can use **Hand of God** — cli
 | Respawn time | 2s |
 | Idle timeout | 60s (resets game) |
 | Victory celebration | 5s |
+| Spawn Invuln (ms) | 3000 (configurable via `spawnInvulnMs`) |
+
+### Spawning
+
+Players spawn at the top-center of the arch (LED 96) and flash while invulnerable for the **Spawn Invuln** duration. This applies to:
+- New players joining a match already in progress (the match is not reset)
+- Existing players respawning after death
+
+Set `spawnInvulnMs` to `0` to disable spawn invulnerability.
 
 ## Architecture
 
