@@ -247,6 +247,8 @@ const ZONES = [
   { name: 'right', start: 135, end: 191 },
 ];
 
+const SPAWN_POINT = 96; // top-center of the arch (center of the `top` zone)
+
 // --- Debug mode ---
 const DEBUG = process.argv.includes('--debug');
 if (DEBUG) console.log('DEBUG MODE: WLED output disabled');
@@ -606,6 +608,30 @@ function spawnPos() {
     if (!taken.some(t => Math.abs(t - c) < 20)) return c;
   }
   return Math.floor(Math.random() * NUM_LEDS);
+}
+
+// Nearest free LED to the single spawn point, searching outward: 96,95,97,94,98,…
+// "Blocked" = a living player, a bomb, a fire tile, or any wall LED.
+// Powerups are intentionally NOT avoided (spawning on one just grants it).
+// The sweeper is intentionally NOT avoided (it moves; spawn-invuln covers it).
+function spawnPoint() {
+  if (gameConfig.randomSpawns) return spawnPos(); // honor the random-spawn game mode
+
+  const blocked = new Set();
+  for (const p of players.values()) if (p.alive) blocked.add(p.pos);
+  for (const b of bombs) blocked.add(b.pos);
+  for (const f of fires) blocked.add(f.pos);
+  for (const w of randomWalls) {
+    for (let i = 0; i < w.size; i++) blocked.add(w.pos + i);
+  }
+
+  for (let d = 0; d < NUM_LEDS; d++) {
+    const cands = d === 0 ? [SPAWN_POINT] : [SPAWN_POINT - d, SPAWN_POINT + d];
+    for (const cand of cands) {
+      if (cand >= 0 && cand < NUM_LEDS && !blocked.has(cand)) return cand;
+    }
+  }
+  return SPAWN_POINT; // total gridlock fallback; invuln covers it
 }
 
 function randomPowerupPos() {
