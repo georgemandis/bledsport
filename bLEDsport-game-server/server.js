@@ -545,7 +545,8 @@ function startGame() {
   for (const p of players.values()) {
     p.score = 0;
     p.alive = true;
-    p.pos = spawnPos();
+    p.pos = spawnPoint();
+    p.invulnUntil = matchStartAt + gameConfig.spawnInvulnMs;
     p.lastDelta = 0;
     p.hasDash = true;
     p.dashAnim = null;
@@ -1141,7 +1142,8 @@ function tick() {
     }
     if (!p.alive && now >= p.respawnAt) {
       p.alive = true;
-      p.pos = spawnPos();
+      p.pos = spawnPoint();
+      p.invulnUntil = now + gameConfig.spawnInvulnMs;
       p.lastDelta = 0;
       p.hasDash = true;
       p.dashAnim = null;
