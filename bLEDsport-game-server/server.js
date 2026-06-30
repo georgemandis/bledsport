@@ -69,6 +69,7 @@ const CONFIG_SCHEMA = {
 
   // Display
   ledBrightness: { default: 255, min: 10, max: 255, step: 5, category: 'display', live: true },
+  idleRainbow: { default: false, category: 'display', live: true },
 };
 
 // Build gameConfig from defaults
@@ -1011,8 +1012,9 @@ function tick() {
 
   // --- Waiting phase ---
   if (gamePhase === 'waiting') {
-    // Idle animation: gentle portal glow, rainbow idle
+    // Idle animation: gentle portal glow, rainbow idle (off by default; fully dark when disabled)
     const pixels = new Array(NUM_LEDS).fill(null);
+    if (gameConfig.idleRainbow) {
     // Portal glow (dynamic positions)
     if (gameConfig.portalsEnabled) {
       const portalPulse = portalBlinking
@@ -1044,6 +1046,7 @@ function tick() {
       const bri = 0.05 + 0.03 * Math.sin(animTime * 2 + i * 0.1);
       const [r, g, b] = hslToRgb(hue, 1, bri);
       pixels[i] = [r, g, b];
+    }
     }
     sendToWled(pixels);
     broadcast({
