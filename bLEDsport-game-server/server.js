@@ -584,6 +584,21 @@ function startGame() {
   console.log(`Game started with ${players.size} players`);
 }
 
+// Decide what happens when a player joins. Waiting → start the round.
+// Mid-match → drop them in live at the spawn point with invulnerability,
+// without disturbing existing players, scores, the board, or the timer.
+function joinPlayer(player) {
+  if (gamePhase === 'waiting') {
+    startGame(); // startGame() positions everyone (including this player)
+    return;
+  }
+  // gamePhase is 'playing' or 'suddenDeath' — live drop-in.
+  const now = Date.now();
+  player.alive = true;
+  player.pos = spawnPoint();
+  player.invulnUntil = now + gameConfig.spawnInvulnMs;
+}
+
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
 }
@@ -1998,7 +2013,7 @@ const server = Bun.serve({
           clients.set(ws, id);
           ws.send(JSON.stringify({ type: 'welcome', id, color: player.color }));
           console.log(`Player ${id} joined (${players.size} total)`);
-          startGame(); // restart round with all current players
+          joinPlayer(player); // start round if waiting, else live drop-in
           return;
         }
         if (input.type === 'start_game') {
@@ -2132,7 +2147,7 @@ if (gamepadMappings.length > 0) {
           players.set(id, player);
           padPlayers.set(pad.index, id);
           console.log(`Gamepad ${pad.index} joined as Player ${id} (${players.size} total)`);
-          startGame(); // restart round with all current players
+          joinPlayer(player); // start round if waiting, else live drop-in
         }
         return;
       }
