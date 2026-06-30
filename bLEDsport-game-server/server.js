@@ -818,6 +818,7 @@ function declareWinner(player, now) {
 
 function hitPlayer(player, attackerId, now) {
   if (gamePhase !== 'playing' && gamePhase !== 'suddenDeath') return; // game already ended
+  if (now < player.invulnUntil) return; // spawn invulnerability — no damage
   if (player.shieldActive) return; // shield absorbs the hit
 
   player.alive = false;
