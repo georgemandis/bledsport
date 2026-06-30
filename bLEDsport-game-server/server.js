@@ -1533,6 +1533,8 @@ function tick() {
       if (flash) pixels[p.pos] = [80, 0, 0];
       continue;
     }
+    // Spawn invulnerability: blink the player on/off (~4 Hz) by skipping the draw on "off" frames
+    if (p.invulnUntil > now && (Math.floor(animTime * 8) % 2) !== 0) continue;
     // Dash inchworm animation
     if (p.dashAnim) {
       const elapsed = now - p.dashAnim.startTime;
@@ -1632,6 +1634,7 @@ function serializePlayers() {
     return {
       id: p.id, pos: p.pos, color: p.color, width: p.width,
       hasDash: p.hasDash, alive: p.alive, score: p.score, name: p.name,
+      invuln: Date.now() < p.invulnUntil,
       shieldActive: p.shieldActive,
       bombReady,
       blastCharges: blastReady, blastMax: p.blastMaxCharges,

@@ -821,6 +821,7 @@ function drawCanvas() {
 
   // Players
   for (const p of gameState.players) {
+    if (p.invuln && (Math.floor(gameState.animTime * 8) % 2) !== 0) continue;
     if (!p.alive) {
       if (Math.sin(t * 10) > 0 && p.pos >= 0 && p.pos < NUM_LEDS) pixels[p.pos] = [80, 0, 0];
       continue;
