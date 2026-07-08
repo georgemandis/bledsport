@@ -62,6 +62,22 @@
     overflow-y: auto;
     padding: 28px 32px;
   }
+
+  /* ── Mobile: stack config panel above live view instead of side-by-side ── */
+  @media (max-width: 768px) {
+    .layout {
+      grid-template-columns: 1fr;
+      height: auto;
+      min-height: 100vh;
+    }
+    .config-panel {
+      padding: 20px 16px;
+    }
+    .live-panel {
+      border-left: none;
+      border-top: 1px solid var(--line-soft);
+    }
+  }
   .config-panel h1.app-title {
     display: flex;
     align-items: flex-end;
