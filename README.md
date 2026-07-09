@@ -4,6 +4,8 @@ A multiplayer arena game played on a 192-LED arch controlled by [WLED](https://k
 
 The game server runs on a Raspberry Pi connected to USB gamepads and talks to a WLED controller via DDP over UDP. An external spectator server (deployed on [Disco](https://disco.cloud/)) mirrors the game in real-time so anyone on the internet can watch and interact.
 
+A [Recurse Center](https://recurse.com) (SP2'26) project by [George Mandis](https://www.recurse.com/directory/3525-george-mandis) and [Marianne Feng](https://www.recurse.com/directory/7295-marianne-feng).
+
 ## The Arch
 
 The physical LED arch is divided into three zones:
@@ -244,6 +246,6 @@ journalctl -u bledsport -f
 
 - **Portal momentum** — entering a portal at one end teleports you to the other with 4 ticks of forced movement, preventing instant back-and-forth teleport spam.
 
-- **Hand of God** — spectators can click the arch to drop bombs, adding a crowd-vs-players dynamic. God bombs leave lingering fire patches.
+- **Hand of God** — spectators can click the arch to drop bombs and powerups, adding a crowd-vs-players dynamic. God bombs leave lingering fire patches.
 
 - **udev rules** — required for the Pi to access HID devices without root. Each controller vendor/product ID needs its own rule. `systemctl daemon-reload` does *not* affect udev rules (they're completely separate systems).
